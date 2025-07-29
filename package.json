@@ -1,0 +1,33 @@
+{
+	"name": "trackr-app",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^6.0.0",
+		"@sveltejs/kit": "^2.22.0",
+		"@sveltejs/vite-plugin-svelte": "^6.0.0",
+		"@types/node": "^24.1.0",
+		"svelte": "^5.0.0",
+		"svelte-check": "^4.0.0",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.8.3",
+		"vite": "^7.0.4"
+	},
+	"dependencies": {
+		"chart.js": "^4.5.0",
+		"dotenv": "^17.2.1",
+		"firebase": "^12.0.0",
+		"firebase-admin": "^13.4.0",
+		"firebase-functions": "^6.4.0",
+		"openai": "^5.10.2"
+	}
+}
