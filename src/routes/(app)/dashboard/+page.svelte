@@ -75,28 +75,28 @@
   }
 
   async function sendChatMessage() {
-    if (!chatInput.trim() || !$user?.uid) return;
-    sending = true;
-    chatResponse = '';
-    try {
-      const res = await fetch('src/routes/chatApi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: $user.uid,
-          messages: [
-            { role: 'user', content: chatInput }
-          ]
-        })
-      });
-      const data = await res.json();
-      chatResponse = data.choices?.[0]?.message?.content || 'No response';
-    } catch (e) {
-      chatResponse = 'Error loading response';
-    } finally {
-      sending = false;
-    }
+  if (!chatInput.trim() || !$user?.uid) return;
+  sending = true;
+  chatResponse = '';
+  try {
+    const res = await fetch('/chat-api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: $user.uid,
+        messages: [
+          { role: 'user', content: chatInput }
+        ]
+      })
+    });
+    const data = await res.json();
+    chatResponse = data.choices?.[0]?.message?.content || 'No response';
+  } catch (e) {
+    chatResponse = 'Error loading response';
+  } finally {
+    sending = false;
   }
+}
 
   onMount(async () => {
     const unsubscribe = userReady.subscribe(async (ready) => {
