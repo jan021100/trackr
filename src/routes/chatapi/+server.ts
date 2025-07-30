@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/utils/firebase';
 import { askGpt } from '$lib/utils/gpt';
-import { collection, doc, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 
 export async function POST({ request }) {
   const { messages, uid } = await request.json();
@@ -15,19 +15,37 @@ export async function POST({ request }) {
     return json({ error: 'Missing uid' }, { status: 400 });
   }
 
+  // 🧰 Hilfsfunktion zum sicheren Laden eines Dokuments
+  const safeGetDocData = async (ref) => {
+    try {
+      const snap = await getDoc(ref);
+      return snap.exists() ? snap.data() : null;
+    } catch (err) {
+      console.warn('⚠️ Failed to load doc:', ref.path, err.message);
+      return null;
+    }
+  };
+
   try {
-    // Firestore collection path: users/{uid}/items
-    const userDocRef = doc(collection(db, 'users'), uid);
-    const itemsRef = collection(userDocRef, 'items');
+    const userRef = doc(collection(db, 'users'), uid);
 
-    console.log('📁 Firestore path:', `users/${uid}/items`);
+    // 👕 1. Lade Kleidungsstücke (Subcollection: items)
+    const itemsRef = collection(userRef, 'items');
+    const itemsSnap = await getDocs(itemsRef);
+    const items = itemsSnap.docs.map(doc => doc.data());
 
-    const snapshot = await getDocs(itemsRef);
-    const items = snapshot.docs.map(doc => doc.data());
+    // 🧍 2. Lade Profildaten (z. B. profile, prefs, style)
+    const profile = await safeGetDocData(doc(userRef, 'profile'));
+    const prefs = await safeGetDocData(doc(userRef, 'prefs'));
+    const style = await safeGetDocData(doc(userRef, 'style'));
 
-    console.log('🧠 Items for GPT:', items);
+    console.log('🧠 Items:', items);
+    console.log('👤 Profile:', profile);
+    console.log('⚙️ Prefs:', prefs);
+    console.log('🎨 Style:', style);
 
-    const data = await askGpt(messages, items);
+    // 🤖 3. Übergib alles an GPT
+    const data = await askGpt(messages, items, prefs, profile, style);
 
     console.log('✅ GPT response:', data);
 
