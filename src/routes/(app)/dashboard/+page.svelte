@@ -79,7 +79,7 @@
   sending = true;
   chatResponse = '';
   try {
-    const res = await fetch('/chat', {
+    const res = await fetch('/chatapi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
