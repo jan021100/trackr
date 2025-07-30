@@ -3,33 +3,29 @@ import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
 import {
-	FIREBASE_KEY_PATH,
-	FIREBASE_PROJECT_ID,
-	FIREBASE_CLIENT_EMAIL,
-	FIREBASE_PRIVATE_KEY
+  FIREBASE_PROJECT_ID,
+  FIREBASE_CLIENT_EMAIL,
+  FIREBASE_PRIVATE_KEY
 } from '$env/static/private';
 
-let firebaseAdminApp;
+let credential;
 
-if (!getApps().length) {
-	if (FIREBASE_KEY_PATH) {
-		// ✅ Lokale Initialisierung über JSON-Datei
-		const serviceAccount = JSON.parse(readFileSync(FIREBASE_KEY_PATH, 'utf8'));
-		firebaseAdminApp = initializeApp({
-			credential: cert(serviceAccount)
-		});
-	} else {
-		// ✅ Server (z. B. Vercel) Initialisierung über Umgebungsvariablen
-		firebaseAdminApp = initializeApp({
-			credential: cert({
-				projectId: FIREBASE_PROJECT_ID,
-				clientEmail: FIREBASE_CLIENT_EMAIL,
-				privateKey: FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
-			})
-		});
-	} 
+if (process.env.FIREBASE_KEY_PATH && process.env.NODE_ENV !== 'production') {
+  // Lokale Entwicklungsumgebung: JSON-Datei lesen
+  const serviceAccount = JSON.parse(readFileSync(process.env.FIREBASE_KEY_PATH, 'utf-8'));
+  credential = cert(serviceAccount);
 } else {
-	firebaseAdminApp = getApps()[0];
+  // Vercel / Production: Daten aus .env / Vercel-Environment
+  credential = cert({
+    projectId: FIREBASE_PROJECT_ID,
+    clientEmail: FIREBASE_CLIENT_EMAIL,
+    privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+  });
 }
+
+const firebaseAdminApp =
+  getApps().length === 0
+    ? initializeApp({ credential })
+    : getApps()[0];
 
 export const adminDb = getFirestore(firebaseAdminApp);
