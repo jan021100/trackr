@@ -290,7 +290,7 @@ Rules:
 <div class="study-shell">
   <header class="hero">
     <div><p class="eyebrow">SURGERY · STATE EXAM</p><h1>Knowledge map</h1><p class="subtitle">Persistent progress from your oral study sessions.</p></div>
-    <div class="hero-actions"><div class="action-stack"><button class="review-link compact" aria-label="Open Surgery study plan" title="Study plan" on:click={() => goto('/study/plan')}><span class="review-icon">◎</span><span class="review-copy"><strong>Study plan</strong><small>{currentPhase?.name ?? 'Set up your plan'}</small></span></button><button class="review-link compact" aria-label={`${dueRetentionCount} retention cards due`} title="Review retention cards" on:click={() => goto('/study/review')}><span class="review-icon">↻</span><span class="review-copy"><strong>Retention</strong><small>{dueRetentionCount ? `${dueRetentionCount} due now` : 'Up to date'}</small></span>{#if dueRetentionCount}<b class="due-badge">{dueRetentionCount > 99 ? '99+' : dueRetentionCount}</b>{/if}</button></div><div class="exam"><strong>{daysRemaining}</strong><span>days to 8 Sep 2026</span></div></div>
+    <div class="hero-actions"><div class="action-stack"><button class="review-link compact desktop-study-control" aria-label="Open Surgery study plan" title="Study plan" on:click={() => goto('/study/plan')}><span class="review-icon">◎</span><span class="review-copy"><strong>Study plan</strong><small>{currentPhase?.name ?? 'Set up your plan'}</small></span></button><button class="review-link compact" aria-label={`${dueRetentionCount} retention cards due`} title="Review retention cards" on:click={() => goto('/study/review')}><span class="review-icon">↻</span><span class="review-copy"><strong>Retention</strong><small>{dueRetentionCount ? `${dueRetentionCount} due now` : 'Up to date'}</small></span>{#if dueRetentionCount}<b class="due-badge">{dueRetentionCount > 99 ? '99+' : dueRetentionCount}</b>{/if}</button></div><div class="exam"><strong>{daysRemaining}</strong><span>days to 8 Sep 2026</span></div></div>
   </header>
 
   {#if error}<div class="message error" role="alert">{error}<button on:click={() => error = ''}>Dismiss</button></div>{/if}
@@ -306,7 +306,7 @@ Rules:
     </section>
 
     {#if planConfig && planProgress}
-      <button class="plan-strip" on:click={() => goto('/study/plan')} aria-label="Open detailed Surgery study plan">
+      <button class="plan-strip desktop-study-control" on:click={() => goto('/study/plan')} aria-label="Open detailed Surgery study plan">
         <div class="plan-status"><span>{currentPhase?.name ?? (today === planConfig.examDate ? 'Exam day' : 'Study plan')}</span><strong class:ahead={planPacing?.status === 'ahead'} class:behind={planPacing?.status === 'behind'}>{planPacing?.status === 'ahead' ? 'Ahead' : planPacing?.status === 'behind' ? 'Behind' : currentPhase?.type === 'buffer' ? 'Buffer mode' : 'On track'}</strong><small>{planPacing?.status === 'ahead' ? `${planPacing.difference} topics ahead` : planPacing?.status === 'behind' ? `${planPacing.difference} topics behind` : currentPhase?.type === 'buffer' ? 'Focus on red zones and exam skills' : `${planPacing?.todayRemaining ?? 0} remaining today`}</small></div>
         <div class="plan-progress"><div><span>{activePass === 'second' ? 'Second pass' : 'First pass'}</span><b>{planCovered}<small>/196</small></b></div><i><b style={`width:${planCovered / 196 * 100}%`}></b></i><small>{Math.round(planCovered / 196 * 100)}% covered</small></div>
         <div class="plan-today"><span>First-pass today</span><strong>{planPacing?.todayActual ?? 0}<small> / {planPacing?.todayQuota ?? 0}</small></strong><small>{assessedTopicsToday} topics assessed</small></div>
@@ -314,7 +314,7 @@ Rules:
         <span class="plan-arrow">›</span>
       </button>
     {:else}
-      <button class="plan-strip plan-empty" on:click={() => goto('/study/plan')}><div><span>STUDY PLAN</span><strong>Set up daily pacing</strong><small>Use your existing assessed topics as the starting baseline.</small></div><span class="plan-arrow">›</span></button>
+      <button class="plan-strip plan-empty desktop-study-control" on:click={() => goto('/study/plan')}><div><span>STUDY PLAN</span><strong>Set up daily pacing</strong><small>Use your existing assessed topics as the starting baseline.</small></div><span class="plan-arrow">›</span></button>
     {/if}
 
     <section class="blocks">
@@ -328,7 +328,7 @@ Rules:
     </section>
 
     <div class="main-grid">
-      <section class="panel wide">
+      <section class="panel wide desktop-study-control">
         <div class="panel-head"><div><p class="eyebrow">KNOWLEDGE MAP</p><h2>196 topics</h2></div><div class="legend"><span><i class="m0"></i>0</span><span><i class="m1"></i>1</span><span><i class="m2"></i>2</span><span><i class="m3"></i>3</span><span><i class="m4"></i>4</span></div></div>
         <div class="heatmap" aria-label="Topic mastery heatmap">
           {#each SURGERY_SYLLABUS as topic}
@@ -339,7 +339,7 @@ Rules:
 
       <section class="panel"><div class="panel-head"><div><p class="eyebrow">TRAJECTORY</p><h2>Progress over time</h2></div></div>{#if sessions.length || planProgress}<SurgeryProgressChart {sessions} {planProgress} />{:else}<div class="empty">A chart appears after your first study-plan completion.</div>{/if}</section>
 
-      <section class="panel"><div class="panel-head"><div><p class="eyebrow danger-text">PRIORITY</p><h2>Red zones</h2></div><span class="count">{redZones.length}</span></div>
+      <section class="panel mobile-readonly-panel"><div class="panel-head"><div><p class="eyebrow danger-text">PRIORITY</p><h2>Red zones</h2></div><span class="count">{redZones.length}</span></div>
         {#if redZones.length}<div class="red-list">{#each redZones.slice(0, 8) as item}<button on:click={() => openTopic(item.definition)}><span>{item.definition.id}<small>{activeGaps(item.progress).length} gaps · mastery {item.progress.mastery}</small></span><b>Review</b></button>{/each}</div>{:else}<div class="empty">No weak areas or open gaps yet.</div>{/if}
       </section>
 
@@ -388,4 +388,22 @@ Rules:
   @media(max-width:800px){.plan-strip{grid-template-columns:1fr 1fr;gap:14px}.plan-arrow{display:none!important}.hero-actions{width:100%}.action-stack{flex:1;width:auto}.exam{min-width:120px}}
   @media(max-width:480px){.hero-actions{flex-direction:column}.action-stack{width:100%}.exam{text-align:center}.metrics article{padding:11px 13px}.plan-strip{grid-template-columns:1fr}.plan-progress{order:3}}
   .plan-topic-section{margin:16px 0;padding:14px;background:#11141b;border:1px solid #292e39;border-radius:12px}.plan-topic-section h3{font-size:.83rem;margin:0 0 4px}.plan-topic-section p{font-size:.73rem;color:#858c9e;margin:0}.plan-topic-state{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.plan-topic-state span{background:#171b24;border-radius:9px;padding:9px;color:#aab0bf;font-size:.72rem}.plan-topic-state b{display:block;color:#eef0f7;margin-bottom:4px}@media(max-width:480px){.plan-topic-state{grid-template-columns:1fr}}
+  @media(max-width:700px){
+    .desktop-study-control,.import-panel,.topics-panel{display:none!important}
+    .study-shell{padding-bottom:72px}
+    .hero{display:block;padding:10px 0 14px}
+    .hero h1{font-size:2.2rem}
+    .subtitle{display:none}
+    .hero-actions{margin-top:14px;display:grid;grid-template-columns:1fr auto;align-items:stretch}
+    .action-stack{display:block;width:auto}
+    .review-link.compact{min-height:58px}
+    .exam{min-width:82px;display:grid;place-content:center}
+    .metrics{gap:7px}
+    .blocks{display:flex;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x proximity}
+    .blocks button{min-width:145px;scroll-snap-align:start}
+    .main-grid{display:block}
+    .main-grid>.panel{margin-top:8px}
+    .mobile-readonly-panel .red-list button{pointer-events:none;cursor:default}
+    .mobile-readonly-panel .red-list b{display:none}
+  }
 </style>

@@ -808,6 +808,8 @@
     {/each}
   </nav>
 
+  <div class="mobile-lite-banner"><strong>Life Lite</strong><span>Log today, check things off, keep moving.</span></div>
+
   {#if message}<div class="toast" role="status" aria-live="polite">✓ {message}</div>{/if}
 
   {#if loading}
@@ -833,7 +835,7 @@
 
     <section class="today-grid">
       <div class="panel">
-        <div class="section-head"><div><p class="eyebrow">Habits</p><h2>For this day</h2></div><button class="text-button" on:click={() => (activeTab = 'habits')}>Manage</button></div>
+        <div class="section-head"><div><p class="eyebrow">Habits</p><h2>For this day</h2></div><button class="text-button mobile-admin-control" on:click={() => (activeTab = 'habits')}>Manage</button></div>
         <div class="check-list">
           {#each scheduledHabits as habit (habit.id)}
             {@const entry = habitEntryForDate(entries, habit.id, selectedDate)}
@@ -1071,4 +1073,32 @@
   .household-import{margin-top:.8rem;background:linear-gradient(120deg,#f1eeff,#fff 58%,#edf8f2)}.household-import-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}.household-import-head h2{margin:0;font-size:1.2rem;letter-spacing:-.03em}.household-import-head>div>p:not(.eyebrow){max-width:690px;margin:.35rem 0 0;color:#777;font-size:.72rem;line-height:1.5}.household-import-actions{display:flex;gap:.4rem;flex-shrink:0}.household-import-body{margin-top:1rem;padding-top:1rem;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.6rem;align-items:end;border-top:1px solid rgba(0,0,0,.08)}.household-import-body>label>span{display:block;margin-bottom:.3rem;color:#6d648a;font-size:.58rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.household-import-body textarea{width:100%;min-height:145px;padding:.75rem;box-sizing:border-box;resize:vertical;border:1px solid #dad5ec;border-radius:12px;background:#fff;font:500 .66rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.preview-button{min-height:42px}.import-errors{grid-column:1/-1;margin:0;padding:.7rem 1rem .7rem 1.8rem;border-radius:12px;background:#fff0f1;color:#9c3340;font-size:.68rem}.import-preview{grid-column:1/-1;padding:.85rem;border:1px solid #ded9ef;border-radius:16px;background:rgba(255,255,255,.76)}.duplicate-count{padding:.3rem .55rem;border-radius:999px;background:#f0f0ed;color:#777;font-size:.58rem}.import-task-grid{margin:.7rem 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}.import-task-grid article{padding:.58rem;display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:.5rem;align-items:center;border:1px solid #dfeadf;border-radius:12px;background:#f6fbf8}.import-task-grid article.duplicate{border-color:#e6e6e2;background:#f5f5f2;opacity:.65}.import-task-grid article>span{font-size:1rem}.import-task-grid strong,.import-task-grid small{display:block}.import-task-grid strong{font-size:.66rem}.import-task-grid small{margin-top:.12rem;color:#777;font-size:.57rem}.import-task-grid i{color:#39704e;font-size:.52rem;font-style:normal;font-weight:850;text-transform:uppercase}.import-task-grid .duplicate i{color:#777}
   @media(max-width:980px){.today-grid,.two-column,.book-layout{grid-template-columns:1fr}.book-strip,.shelf-grid{grid-template-columns:repeat(2,1fr)}.import-task-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.heatmap{grid-template-columns:repeat(21,1fr)}}
   @media(max-width:680px){.life-page{padding-bottom:4rem}.hero{padding:1.5rem;align-items:flex-start;flex-direction:column}.hero h1{font-size:3.2rem}.date-card{width:100%;box-sizing:border-box}.today-summary{grid-template-columns:1fr 1fr}.today-summary .summary-card:last-child{grid-column:1/-1}.starter-card,.household-import-head{align-items:stretch;flex-direction:column}.household-import-actions{display:grid;grid-template-columns:1fr}.household-import-body{grid-template-columns:1fr}.preview-button{width:100%}.import-task-grid{grid-template-columns:1fr}.book-strip,.shelf-grid,.activity-list{grid-template-columns:1fr}.quick-reading{grid-template-columns:1fr 1fr}.quick-reading label:first-child,.quick-reading .quick-note{grid-column:1/-1}.manage-row,.due-row{grid-template-columns:40px 1fr auto}.manage-row .archive,.due-row .archive{grid-column:2}.search-results{grid-template-columns:1fr}.reading-history article{grid-template-columns:75px 1fr}.reading-history article p{grid-column:2}.insight-hero{grid-template-columns:1fr 1fr}.insight-hero>div:first-child{grid-column:1/-1}.heatmap-row{grid-template-columns:1fr}.heatmap{grid-template-columns:repeat(14,1fr)}.status-grid{grid-template-columns:1fr 1fr}.form-grid.compact{grid-template-columns:74px 1fr}}
+  .mobile-lite-banner{display:none}
+  @media(max-width:680px){
+    .hero{min-height:0;padding:1rem 1.05rem;gap:.8rem;border-radius:22px}
+    .hero-copy>p:last-child,.orb{display:none}
+    .hero h1{font-size:2.35rem;line-height:.92}
+    .date-card{min-width:0;padding:.65rem .75rem;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:.2rem .65rem;border-radius:15px}
+    .date-card input{grid-column:2;grid-row:1/3;margin:0;padding:.5rem}
+    .life-tabs{top:calc(56px + env(safe-area-inset-top));margin:.65rem 0;padding:.25rem}
+    .life-tabs button{min-width:78px;min-height:40px;padding:.45rem .55rem}
+    .mobile-lite-banner{display:flex;align-items:center;gap:.55rem;margin:0 0 .65rem;padding:.55rem .7rem;border-radius:13px;background:#eeeaff;color:#5f50a2;font-size:.62rem}
+    .mobile-lite-banner strong{padding:.2rem .4rem;border-radius:999px;background:#735be2;color:#fff;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em}
+    .today-summary{grid-template-columns:repeat(3,1fr);gap:.4rem}
+    .today-summary .summary-card:last-child{grid-column:auto}
+    .summary-card{padding:.7rem;border-radius:16px}
+    .summary-card strong{font-size:1.45rem}
+    .today-grid,.two-column,.book-layout{margin-top:.55rem;gap:.55rem}
+    .panel{padding:.8rem;border-radius:18px;box-shadow:none}
+    .form-panel,.household-import,.book-form,.starter-card,.mobile-admin-control,.manage-row .archive,.due-row .archive,.book-actions,.book-card>select{display:none!important}
+    .manage-row,.due-row{grid-template-columns:40px minmax(0,1fr) auto}
+    .habit-check,.task-check,.manage-row,.due-row{min-height:54px;box-sizing:border-box}
+    .check-button,.entity-icon{width:44px;height:44px}
+    .pill-button{min-height:40px}
+    .book-layout{display:block}
+    .reading-form{margin-top:0}
+    .book-card{grid-template-columns:54px minmax(0,1fr)}
+    .book-cover{width:54px;height:78px}
+    .activity-panel{margin-top:.55rem}
+  }
 </style>

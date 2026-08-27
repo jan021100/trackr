@@ -92,7 +92,7 @@ RULES:
 
 <svelte:head><title>Retention Review · Trackr</title></svelte:head>
 <main class="review-shell">
-  <header><div><button class="back" on:click={()=>goto('/study')}>← Knowledge map</button><p>RETENTION LAB</p><h1>Review weak spots</h1><span>Cards reinforce specific misses; oral mastery remains separate.</span></div><nav><button class:active={mode==='review'} on:click={()=>mode='review'}>Review</button><button class:active={mode==='library'} on:click={()=>mode='library'}>Library</button><button class:active={mode==='create'} on:click={()=>mode='create'}>New card</button></nav></header>
+  <header><div><button class="back" on:click={()=>goto('/study')}>← Study overview</button><p>RETENTION LAB</p><h1>Review weak spots</h1><span>Cards reinforce specific misses; oral mastery remains separate.</span></div><nav><button class:active={mode==='review'} on:click={()=>mode='review'}>Review</button><button class="retention-admin-control" class:active={mode==='library'} on:click={()=>mode='library'}>Library</button><button class="retention-admin-control" class:active={mode==='create'} on:click={()=>mode='create'}>New card</button></nav></header>
   {#if error}<div class="message error">{error}<button on:click={()=>error=''}>Dismiss</button></div>{/if}{#if notice}<div class="message success">{notice}<button on:click={()=>notice=''}>Dismiss</button></div>{/if}
   <section class="stats"><article><span>Due now</span><strong>{stats.due}</strong></article><article><span>Active cards</span><strong>{stats.active}</strong></article><article><span>Total reviews</span><strong>{stats.reviewed}</strong></article><article><span>Leeches</span><strong>{stats.leeches}</strong></article></section>
   {#if loading}<section class="panel empty">Loading retention cards…</section>
@@ -112,4 +112,14 @@ RULES:
   /* Compact review chrome: keep attention on the active card. */
   .review-shell>header{margin-bottom:14px;align-items:center}.review-shell>header h1{font-size:clamp(1.75rem,3.5vw,2.7rem);margin:2px 0}.review-shell>header p{margin:8px 0 3px}.review-shell>header span{display:block}.stats{margin-bottom:4px}.stats article{padding:11px 15px}.stats strong{font-size:1.35rem;margin-top:4px}.review-area .card{max-width:none;width:100%;box-sizing:border-box;margin:18px 0;padding:24px}.meta{margin-bottom:14px}.context{margin-bottom:8px}.prompt{padding:34px 8px}.reveal kbd{margin-left:8px}kbd{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border:1px solid #4a5160;border-radius:4px;background:#11141b;color:#aeb5c5;font:600 .67rem ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:inset 0 -1px #343a47}.ratings button{display:grid;grid-template-columns:28px 1fr 48px;align-items:center;text-align:left;min-height:54px;padding:8px 12px}.ratings button kbd{justify-self:start}.ratings button span{justify-self:center;font-weight:650}.ratings button small{justify-self:end;color:#9299ab;font-size:.72rem}.ratings .again small{color:#ff8390}.ratings .easy small{color:#75d6ac}.shortcut-hint{text-align:center;color:#747d90;font-size:.7rem;margin:11px 0 0}
   @media(max-width:850px){.create-grid{grid-template-columns:1fr}.import-title{display:block}.import-title button{margin-top:10px}}
+  @media(max-width:700px){
+    .retention-admin-control{display:none}
+    header nav{margin-top:12px}
+    header nav button{width:100%}
+    .stats article{padding:10px 12px}
+    .review-area .card{margin:10px 0;padding:16px}
+    .prompt{padding:28px 4px;font-size:1.25rem}
+    .ratings button{grid-template-columns:24px 1fr 42px;padding:8px}
+    .shortcut-hint,.reveal kbd{display:none}
+  }
 </style>

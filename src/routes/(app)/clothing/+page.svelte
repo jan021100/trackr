@@ -483,7 +483,7 @@ function loadCollapsedCategories() {
   <!-- kompakte, sticky Topbar -->
   <div class="topbar">
     <div class="topline">
-      <h1>My Clothing</h1>
+      <div class="clothing-title"><span class="mobile-lite-copy">Quick wear</span><h1>My Clothing</h1></div>
       <div class="actions">
         <button class="add-item-button" on:click={() => goto('/clothing/add')}>➕ Add Item</button>
         <button class="add-item-button ghost" on:click={() => goto('/clothing/bulk')}>Edit All</button>
@@ -615,11 +615,11 @@ function loadCollapsedCategories() {
                   {/if}
 
                   <h2>{item.name}</h2>
-                  <p>{item.brand}</p>
-                  <p>Worn: {item.worn}</p>
+                  <p class="item-brand">{item.brand}</p>
+                  <p class="wear-count">Worn: {item.worn}</p>
 
                   {#if item.lastWorn}
-                    <p>
+                    <p class="last-worn">
                       Last worn: {item.lastWorn.slice(0, 10)}
                       {#if item.lastWorn.slice(0, 10) === getTodayDate()}
                         <span class="today">(Today)</span>
@@ -805,6 +805,8 @@ main{
   font-size:1.25rem;
   font-weight:600;
 }
+
+.mobile-lite-copy{display:none}
 
 /* ACTION BUTTONS (top-right like MAAP) */
 
@@ -1191,15 +1193,20 @@ main{
 @media(max-width:760px){
   main{min-height:100dvh;padding:.75rem .15rem 2rem}
   .topline{align-items:flex-start;gap:.7rem}
-  .topbar h1{margin:.6rem 0}
-  .actions{flex-wrap:wrap;justify-content:flex-end}
+  .clothing-title{padding:.35rem 0 .15rem}
+  .mobile-lite-copy{display:block;color:#735be2;font-size:.61rem;font-weight:850;letter-spacing:.1em;text-transform:uppercase}
+  .topbar h1{margin:.1rem 0 .35rem;font-size:1.5rem;letter-spacing:-.04em}
+  .actions,.tile-actions{display:none!important}
   .filter-buttons{padding-bottom:.25rem;overflow-x:auto;overscroll-behavior-inline:contain}
   .filter-buttons button{min-height:40px;white-space:nowrap}
   .item-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
-  .item-card{min-width:0;padding:.5rem}
-  .item-card img{height:125px}
+  .item-card{min-width:0;padding:.55rem;border-radius:16px;gap:.2rem;box-shadow:0 8px 24px rgba(0,0,0,.035)}
+  .item-card img{height:118px}
   .item-card h2{margin:.45rem 0 .15rem;font-size:.8rem}
-  .worn-button,.worn-today-button{min-height:40px}
+  .item-card .item-brand{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.68rem}
+  .item-card .wear-count,.item-card .last-worn{font-size:.65rem}
+  .worn-button,.worn-today-button{width:100%;min-height:42px;margin-top:.3rem}
+  .worn-today-button{background:#171717;border-color:#171717;color:#fff}
   .modal-overlay{padding:max(.5rem,env(safe-area-inset-top)) .5rem max(.5rem,env(safe-area-inset-bottom));box-sizing:border-box}
   .modal-card{width:100%;max-width:100%;max-height:calc(100dvh - max(1rem,env(safe-area-inset-top) + env(safe-area-inset-bottom)));padding:.75rem;border-radius:14px}
 }

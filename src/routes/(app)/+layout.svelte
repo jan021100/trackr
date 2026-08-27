@@ -63,6 +63,7 @@ Authenticated layout — MAAP-style light UI
   <header class="top-bar">
     <button class="top-left" aria-label="Open dashboard" on:click={() => goto('/dashboard')}>
       <span class="brand-text">Trackr</span>
+      <span class="mobile-mode-label">Lite</span>
     </button>
 
     {#if $user}
@@ -86,6 +87,7 @@ Authenticated layout — MAAP-style light UI
     {#each tabs as tab}
       <button
         class="tab-btn"
+        class:mobile-secondary={tab.key === 'system'}
         class:active={$page.url.pathname.startsWith(tab.path)}
         aria-label={tab.name}
         aria-current={$page.url.pathname.startsWith(tab.path) ? 'page' : undefined}
@@ -223,6 +225,8 @@ Authenticated layout — MAAP-style light UI
   letter-spacing:.02em;
 }
 
+.mobile-mode-label{display:none}
+
 .user-button{
   display:flex;
   align-items:center;
@@ -296,6 +300,9 @@ Authenticated layout — MAAP-style light UI
 @media(max-width:760px){
   .main-content{padding:.7rem;padding-bottom:calc(72px + env(safe-area-inset-bottom))}
   .top-bar{padding-left:max(.85rem,env(safe-area-inset-left));padding-right:max(.85rem,env(safe-area-inset-right))}
+  .top-left{display:flex;align-items:center;gap:.45rem}
+  .mobile-mode-label{display:inline-flex;align-items:center;height:20px;padding:0 .48rem;border-radius:999px;background:#eeeaff;color:#5c45bd;font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .tab-btn.mobile-secondary{display:none}
   .tab-btn{padding:.35rem .2rem;font-size:.67rem}
   :global(input),:global(select),:global(textarea){font-size:16px!important}
 }
