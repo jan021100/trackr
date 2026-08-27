@@ -15,8 +15,8 @@ Thumbs.db
 
 # Environment variables – secrets should never be committed
 .env
-.env.*        # exclude all env files...
-!.env.example # ...except documented safe templates
+.env.*
+!.env.example
 !.env.test
 
 # Vite cache

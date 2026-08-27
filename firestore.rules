@@ -2,15 +2,92 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Öffentlich lesbar (nur vorübergehend für Tests!)
-    match /items/{itemId} {
-      allow read: if true;
-      allow write: if false;
+    // Zugriff auf das User-Dokument nur für den jeweiligen Benutzer
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Zugriff auf die Items-Subkollektion innerhalb des Benutzers
+      match /items/{itemId} {
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Immutable originals created before automatic background removal.
+      // They can be restored by their owner but never overwritten or deleted by the app.
+      match /imageBackups/{itemId} {
+        allow create, read: if request.auth != null && request.auth.uid == userId;
+        allow update, delete: if false;
+      }
+
+      // User-owned saved outfit combinations and studio layouts.
+      match /outfits/{outfitId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Zugriff auf Logs-Subkollektion innerhalb des Benutzers
+      match /logs/{logId} {
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Zugriff auf meta-Dokumente (z.B. analysis settings)
+      match /meta/{metaId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Legacy study tracker; can remain until its stored data is retired.
+      match /studyLogs/{logId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Surgery tracker state, currently surgeryTracker/state.
+      match /surgeryTracker/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Surgery progress-over-time session snapshots.
+      match /surgerySessions/{sessionId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Linked retention cards and their spaced-review history.
+      match /retentionCards/{cardId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Editable Surgery exam plan and its independent coverage state.
+      match /surgeryPlan/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Life tracker definitions. The app archives records instead of deleting them,
+      // preserving habit, maintenance and book history for the authenticated owner.
+      match /lifeHabits/{habitId} {
+        allow create, read, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      match /lifeTasks/{taskId} {
+        allow create, read, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      match /lifeBooks/{bookId} {
+        allow create, read, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      // Append-only activity history. Corrections use active/completed flags so an
+      // accidental click can be undone without physically destroying the record.
+      match /lifeEntries/{entryId} {
+        allow create, read, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if false;
+      }
     }
 
-    // Nutzer können auf ihre eigenen Daten zugreifen
-    match /users/{userId}/items/{itemId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // Alle anderen Pfade werden blockiert
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

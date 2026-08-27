@@ -1,19 +1,24 @@
 import { json } from '@sveltejs/kit';
-import { adminDb } from '$lib/server/firebase-admin';
+import { getAdminDb } from '$lib/server/firebase-admin';
+import { verifyFirebaseUser } from '$lib/server/firebase-admin';
 import { askGpt } from '$lib/utils/gpt';
 
 export async function POST({ request }) {
-	const { messages, uid } = await request.json();
+	const authorization = request.headers.get('authorization') ?? '';
+	const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+	if (!token) return json({ error: 'Sign in to use this feature.' }, { status: 401 });
 
-	console.log('✅ Received POST /chatapi');
-	console.log('📨 UID:', uid);
-	console.log('📨 Messages:', messages);
+	let uid = '';
+	try { uid = await verifyFirebaseUser(token); }
+	catch { return json({ error: 'Your session could not be verified.' }, { status: 401 }); }
 
-	if (!uid) {
-		return json({ error: 'Missing uid' }, { status: 400 });
+	const { messages } = await request.json() as { messages?: unknown };
+	if (!Array.isArray(messages) || messages.length > 50 || JSON.stringify(messages).length > 50_000) {
+		return json({ error: 'Invalid message request.' }, { status: 400 });
 	}
 
 	try {
+		const adminDb = getAdminDb();
 		const itemsSnap = await adminDb.collection('users').doc(uid).collection('items').get();
 		const prefsSnap = await adminDb.collection('users').doc(uid).collection('prefs').get();
 		const userSnap = await adminDb.collection('users').doc(uid).get();
@@ -22,17 +27,13 @@ export async function POST({ request }) {
 		const prefs = prefsSnap.docs.map(doc => doc.data());
 		const profile = userSnap.exists ? userSnap.data() : null;
 
-		console.log('🧠 Items for GPT:', items);
-		console.log('⚙️ Prefs for GPT:', prefs);
-		console.log('👤 Profile for GPT:', profile);
-
 		const data = await askGpt(messages, { items, prefs, profile });
-
-		console.log('✅ GPT response:', data);
-
 		return json(data);
-	} catch (error) {
+	} catch (error: unknown) {
 		console.error('❌ GPT/Firestore error:', error);
-		return json({ error: error?.message || 'Unknown error' }, { status: 500 });
+		return json(
+			{ error: error instanceof Error ? error.message : 'Unknown error' },
+			{ status: 500 }
+		);
 	}
 }

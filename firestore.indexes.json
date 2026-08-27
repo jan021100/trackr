@@ -1,4 +1,20 @@
 {
   "indexes": [],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "items",
+      "fieldPath": "imageBase64",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "imageBackups",
+      "fieldPath": "originalImageBase64",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "lifeBooks",
+      "fieldPath": "coverImageBase64",
+      "indexes": []
+    }
+  ]
 }

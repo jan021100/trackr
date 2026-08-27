@@ -1,9 +1,11 @@
-import { OPENAI_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
-export async function askGpt(messages: any[], items: any[]) {
+export async function askGpt(messages: any[], wardrobeContext: unknown) {
+  const apiKey = env.OPENAI_API_KEY?.trim();
+  if (!apiKey) throw new Error('The optional OpenAI connection is not configured.');
   const systemPrompt = {
     role: 'system',
-    content: `Du bist ein freundlicher Modeassistent. Antworte kumpelhaft, kurz, hilfreich. Du kennst folgende Kleidungsstücke des Nutzers:\n\n${JSON.stringify(items, null, 2)}`
+    content: `Du bist ein freundlicher Modeassistent. Antworte kumpelhaft, kurz, hilfreich. Du kennst folgende Kleidungsstücke des Nutzers:\n\n${JSON.stringify(wardrobeContext, null, 2)}`
   };
 
   const fullMessages = [systemPrompt, ...messages];
@@ -12,7 +14,7 @@ export async function askGpt(messages: any[], items: any[]) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4',
