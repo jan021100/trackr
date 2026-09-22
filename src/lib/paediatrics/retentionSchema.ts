@@ -1,4 +1,4 @@
-import { SURGERY_TOPIC_IDS } from './surgerySyllabus';
+import { PAEDIATRICS_TOPIC_IDS } from './paediatricsSyllabus';
 
 export type CardRating = 'again' | 'hard' | 'good' | 'easy';
 export type RetentionCardStatus = 'active' | 'suspended' | 'mastered' | 'archived';
@@ -82,7 +82,7 @@ export function validateCardImport(input: unknown): RetentionCardImport {
   const seen = new Set<string>();
   const cards = input.cards.map((raw, index): NewRetentionCard => {
     if (!isObject(raw) || !Object.keys(raw).every((key) => ['id', 'topicId', 'gapId', 'sourceSessionId', 'front', 'back', 'clinicalContext', 'tags'].includes(key))) throw new Error(`Card ${index + 1} contains unknown fields.`);
-    if (typeof raw.topicId !== 'string' || !SURGERY_TOPIC_IDS.has(raw.topicId)) throw new Error(`Card ${index + 1} has an unknown topicId.`);
+    if (typeof raw.topicId !== 'string' || !PAEDIATRICS_TOPIC_IDS.has(raw.topicId)) throw new Error(`Card ${index + 1} has an unknown topicId.`);
     if (typeof raw.front !== 'string' || !raw.front.trim() || typeof raw.back !== 'string' || !raw.back.trim()) throw new Error(`Card ${index + 1} needs a front and back.`);
     if (raw.front.length > 2000 || raw.back.length > 5000) throw new Error(`Card ${index + 1} is too long.`);
     for (const key of ['id', 'gapId', 'sourceSessionId', 'clinicalContext'] as const) if (raw[key] !== undefined && typeof raw[key] !== 'string') throw new Error(`Card ${index + 1}.${key} must be a string.`);
@@ -103,14 +103,14 @@ export function todayLocal(date = new Date()) {
 }
 
 export function createRetentionCard(input: NewRetentionCard, now = new Date().toISOString()): RetentionCard {
-  if (!SURGERY_TOPIC_IDS.has(input.topicId)) throw new Error(`Unknown card topic ID: ${input.topicId}.`);
+  if (!PAEDIATRICS_TOPIC_IDS.has(input.topicId)) throw new Error(`Unknown card topic ID: ${input.topicId}.`);
   const front = input.front.trim();
   const back = input.back.trim();
   if (!front || !back) throw new Error('Every retention card needs both a front and a back.');
   if (front.length > 2000 || back.length > 5000) throw new Error('Retention card text is too long.');
   const id = input.id?.trim() || crypto.randomUUID();
   const gapId = input.gapId?.trim() || null;
-  const identityTags = ['trackr', `trackr-id::${id}`, `trackr-topic::${input.topicId}`, ...(gapId ? [`trackr-gap::${gapId}`, 'trackr::surgery-gap'] : [])];
+  const identityTags = ['trackr', `trackr-id::${id}`, `trackr-topic::${input.topicId}`, ...(gapId ? [`trackr-gap::${gapId}`, 'trackr::paediatrics-gap'] : [])];
   return {
     id, topicId: input.topicId,
     gapId, sourceSessionId: input.sourceSessionId?.trim() || null,
@@ -201,7 +201,7 @@ export function cardsToTsv(cards: RetentionCard[]) {
   const headers = ['#separator:Tab', '#html:true', '#tags column:3', '#columns:Front\tBack\tTags\tTopicID\tGapID\tCardID'];
   const rows = cards.map((card) => [
     cleanCell(card.front), cleanCell(card.back),
-    [...new Set([...card.tags, card.topicId, 'trackr', `trackr-id::${card.id}`, `trackr-topic::${card.topicId}`, ...(card.gapId ? [`trackr-gap::${card.gapId}`, 'trackr::surgery-gap'] : [])].map(cleanTag).filter(Boolean))].join(' '),
+    [...new Set([...card.tags, card.topicId, 'trackr', `trackr-id::${card.id}`, `trackr-topic::${card.topicId}`, ...(card.gapId ? [`trackr-gap::${card.gapId}`, 'trackr::paediatrics-gap'] : [])].map(cleanTag).filter(Boolean))].join(' '),
     card.topicId, card.gapId ?? '', card.id
   ]);
   return [...headers, ...rows.map((row) => row.join('\t'))].join('\n');
@@ -216,7 +216,7 @@ export function cardsFromTsv(text: string, fallbackTopicId: string): NewRetentio
   return rows.slice(hasHeader ? 1 : 0).map((cells, index) => {
     const get = (name: string) => cells[header.indexOf(name)] ?? '';
     const topicId = get('topicid').trim() || fallbackTopicId;
-    if (!SURGERY_TOPIC_IDS.has(topicId)) throw new Error(`Row ${index + 1} has unknown topic ID ${topicId}.`);
+    if (!PAEDIATRICS_TOPIC_IDS.has(topicId)) throw new Error(`Row ${index + 1} has unknown topic ID ${topicId}.`);
     if (!get('front').trim() || !get('back').trim()) throw new Error(`Row ${index + 1} is missing Front or Back.`);
     const restore = (value: string) => value.replace(/<br>/gi, '\n').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
     return { id: get('cardid').trim() || undefined, topicId, gapId: get('gapid').trim() || undefined,

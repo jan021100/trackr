@@ -1,8 +1,10 @@
-import type { SessionSnapshot } from './surgerySchema';
+import { coverageFromReviews } from './reviewCoverage';
+import type { SessionSnapshot } from './paediatricsSchema';
+import { passCompletionKey, type PlanPass } from './studyPlanSchema';
 import type { StudyPlanProgress } from './studyPlanSchema';
-import type { SurgeryReviewEvent } from './surgeryReview';
+import type { PaediatricsReviewEvent } from './paediatricsReview';
 
-export type DailySurgerySnapshot = {
+export type DailyPaediatricsSnapshot = {
   date: string;
   averageMastery: number;
   assessedTopics: number;
@@ -21,7 +23,7 @@ function dateInTimeZone(value: string, timeZone: string) {
 }
 
 /** One chart point per local calendar day, represented by the final snapshot. */
-export function groupSurgerySessionsByDay(sessions: SessionSnapshot[], timeZone = 'Europe/Prague'): DailySurgerySnapshot[] {
+export function groupPaediatricsSessionsByDay(sessions: SessionSnapshot[], timeZone = 'Europe/Prague'): DailyPaediatricsSnapshot[] {
   const days = new Map<string, {
     final: SessionSnapshot;
     questions: number;
@@ -63,11 +65,11 @@ export function groupSurgerySessionsByDay(sessions: SessionSnapshot[], timeZone 
 }
 
 /** Explicit pass completions per date; assessment activity is deliberately ignored. */
-export function passCompletionsByDay(progress: StudyPlanProgress | null | undefined, pass: 'first' | 'second') {
+export function passCompletionsByDay(progress: StudyPlanProgress | null | undefined, pass: PlanPass) {
   const counts: Record<string, number> = {};
   if (!progress) return counts;
   for (const topic of Object.values(progress.topics)) {
-    const date = (pass === 'second' ? topic.secondPassCompletedAt : topic.firstPassCompletedAt)?.slice(0, 10);
+    const date = topic[passCompletionKey(pass)]?.slice(0, 10);
     if (date) counts[date] = (counts[date] ?? 0) + 1;
   }
   return counts;
@@ -80,6 +82,7 @@ export type DailyStructuredActivity = {
   date: string;
   firstPasses: number;
   secondPasses: number;
+  thirdPasses: number;
   gapRepairTopics: number;
   gapRepairEquivalent: number;
   gapsTested: number;
@@ -92,24 +95,26 @@ export type DailyStructuredActivity = {
 export const GAP_REPAIR_TOPIC_WEIGHT = 0.25;
 
 /**
- * Counts unique topics, not patch uploads. A topic already counted as a First
- * or Second Pass on a date is deliberately not added again as Gap Repair on
+ * Counts unique topics, not patch uploads. A topic already counted in any full round on a date is deliberately not added again as Gap Repair on
  * that date, so stacked bars cannot be inflated by multiple patch events.
  */
-export function structuredActivityByDay(progress:StudyPlanProgress|null|undefined,reviews:SurgeryReviewEvent[]):DailyStructuredActivity[] {
-  const days=new Map<string,{first:Set<string>;second:Set<string>;gapRepair:Set<string>;gapsTested:number;gapsResolved:number}>();
+export function structuredActivityByDay(progress:StudyPlanProgress|null|undefined,reviews:PaediatricsReviewEvent[]):DailyStructuredActivity[] {
+  const days=new Map<string,{first:Set<string>;second:Set<string>;third:Set<string>;gapRepair:Set<string>;gapsTested:number;gapsResolved:number}>();
   const getDay=(date:string)=>{
     const existing=days.get(date);
     if(existing) return existing;
-    const created={first:new Set<string>(),second:new Set<string>(),gapRepair:new Set<string>(),gapsTested:0,gapsResolved:0};
+    const created={first:new Set<string>(),second:new Set<string>(),third:new Set<string>(),gapRepair:new Set<string>(),gapsTested:0,gapsResolved:0};
     days.set(date,created);
     return created;
   };
-  if(progress) for(const [topicId,topic] of Object.entries(progress.topics)) {
+  const coveredProgress=coverageFromReviews(progress??null,reviews);
+  if(coveredProgress) for(const [topicId,topic] of Object.entries(coveredProgress.topics)) {
     const firstDate=topic.firstPassCompletedAt?.slice(0,10);
     const secondDate=topic.secondPassCompletedAt?.slice(0,10);
     if(firstDate) getDay(firstDate).first.add(topicId);
     if(secondDate) getDay(secondDate).second.add(topicId);
+    const thirdDate=topic.thirdPassCompletedAt?.slice(0,10);
+    if(thirdDate) getDay(thirdDate).third.add(topicId);
   }
   for(const review of reviews) {
     if(review.pass!=='review'||!review.gapResults?.length) continue;
@@ -120,7 +125,7 @@ export function structuredActivityByDay(progress:StudyPlanProgress|null|undefine
     day.gapsResolved+=review.gapResults.filter((result)=>result.outcome==='resolved').length;
   }
   return [...days.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([date,day])=>{
-    for(const topicId of [...day.gapRepair]) if(day.first.has(topicId)||day.second.has(topicId)) day.gapRepair.delete(topicId);
-    return {date,firstPasses:day.first.size,secondPasses:day.second.size,gapRepairTopics:day.gapRepair.size,gapRepairEquivalent:day.gapRepair.size*GAP_REPAIR_TOPIC_WEIGHT,gapsTested:day.gapsTested,gapsResolved:day.gapsResolved};
+    for(const topicId of [...day.gapRepair]) if(day.first.has(topicId)||day.second.has(topicId)||day.third.has(topicId)) day.gapRepair.delete(topicId);
+    return {date,firstPasses:day.first.size,secondPasses:day.second.size,thirdPasses:day.third.size,gapRepairTopics:day.gapRepair.size,gapRepairEquivalent:day.gapRepair.size*GAP_REPAIR_TOPIC_WEIGHT,gapsTested:day.gapsTested,gapsResolved:day.gapsResolved};
   });
 }

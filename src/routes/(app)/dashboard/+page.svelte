@@ -7,8 +7,8 @@
   import { user, userReady } from '$lib/stores/user';
   import { bookProgress, isHabitComplete, isHabitScheduledOn, localDateKey, startOfWeek, taskDueState, type LifeBook, type LifeEntry, type LifeHabit, type LifeTask } from '$lib/utils/lifeTracker';
   import { buildWearDayIndex, type WearInsightItem } from '$lib/utils/wearInsights';
-  import { SURGERY_SYLLABUS } from '$lib/study/surgerySyllabus';
-  import type { SurgeryState } from '$lib/study/surgerySchema';
+  import { PAEDIATRICS_SYLLABUS } from '$lib/paediatrics/paediatricsSyllabus';
+  import type { PaediatricsState } from '$lib/paediatrics/paediatricsSchema';
   import { formatSportsDuration, sportsWeekStart, summarizeSports, type SportsActivity } from '$lib/utils/sports';
 
   type WardrobeItem = WearInsightItem & { worn?: number | string };
@@ -19,7 +19,7 @@
   let tasks: LifeTask[] = [];
   let books: LifeBook[] = [];
   let lifeEntries: LifeEntry[] = [];
-  let studyState: SurgeryState | null = null;
+  let studyState: PaediatricsState | null = null;
   let dueRetention = 0;
   let questionsToday = 0;
   let savedOutfitCount = 0;
@@ -46,7 +46,7 @@
   $: studyTopics = studyState ? Object.values(studyState.topics) : [];
   $: assessedTopics = studyTopics.filter((topic) => topic.status !== 'unassessed').length;
   $: solidTopics = studyTopics.filter((topic) => topic.status === 'solid').length;
-  $: studyPercent = SURGERY_SYLLABUS.length ? Math.round((assessedTopics / SURGERY_SYLLABUS.length) * 100) : 0;
+  $: studyPercent = PAEDIATRICS_SYLLABUS.length ? Math.round((assessedTopics / PAEDIATRICS_SYLLABUS.length) * 100) : 0;
   $: sportsWeek = summarizeSports(sportsActivities.filter((activity) => sportsWeekStart(activity.startDateLocal) === sportsWeekStart(new Date().toISOString())));
 
   function imageFor(item: WardrobeItem | LifeBook | null) {
@@ -78,9 +78,9 @@
       optional('life', () => getDocs(collection(db, 'users', uid, 'lifeTasks')), null),
       optional('life', () => getDocs(collection(db, 'users', uid, 'lifeBooks')), null),
       optional('life', () => getDocs(query(collection(db, 'users', uid, 'lifeEntries'), where('date', '>=', weekStart))), null),
-      optional('study', () => getDoc(doc(db, 'users', uid, 'surgeryTracker', 'state')), null),
-      optional('study', () => getDocs(query(collection(db, 'users', uid, 'retentionCards'), where('dueAt', '<=', nowIso), limit(200))), null),
-      optional('study', () => getDocs(query(collection(db, 'users', uid, 'surgerySessions'), where('date', '>=', todayStart), limit(25))), null),
+      optional('study', () => getDoc(doc(db, 'users', uid, 'paediatricsTracker', 'state')), null),
+      optional('study', () => getDocs(query(collection(db, 'users', uid, 'paediatricsRetentionCards'), where('dueAt', '<=', nowIso), limit(200))), null),
+      optional('study', () => getDocs(query(collection(db, 'users', uid, 'paediatricsSessions'), where('date', '>=', todayStart), limit(25))), null),
       optional('outfits', () => getCountFromServer(collection(db, 'users', uid, 'outfits')), null)
     ]);
     items = itemSnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as WardrobeItem)) ?? [];
@@ -88,7 +88,7 @@
     tasks = taskSnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as LifeTask)).filter((entry) => !entry.archived) ?? [];
     books = bookSnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as LifeBook)).filter((entry) => !entry.archived) ?? [];
     lifeEntries = entrySnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as LifeEntry)) ?? [];
-    studyState = stateSnap?.exists() ? stateSnap.data() as SurgeryState : null;
+    studyState = stateSnap?.exists() ? stateSnap.data() as PaediatricsState : null;
     dueRetention = dueCardsSnap?.docs.filter((entry) => entry.data().status === 'active').length ?? 0;
     questionsToday = sessionSnap?.docs.reduce((sum, entry) => sum + (Number(entry.data().questions) || 0), 0) ?? 0;
     savedOutfitCount = outfitCount?.data().count ?? 0;
@@ -171,9 +171,9 @@
         </article>
 
         <article class="focus-card study-focus">
-          <div class="focus-head"><span>Study</span><button on:click={() => goto('/study')}>Open →</button></div>
+          <div class="focus-head"><span>Paediatrics</span><button on:click={() => goto('/study')}>Open →</button></div>
           <div class="study-ring" style={`--progress:${studyPercent * 3.6}deg`}><div><strong>{studyPercent}%</strong><span>assessed</span></div></div>
-          <div class="study-copy"><h3>{solidTopics} solid topics</h3><p>{assessedTopics} of {SURGERY_SYLLABUS.length} topics assessed · {questionsToday} questions today</p>{#if dueRetention}<button on:click={() => goto('/study/review')}>Review {dueRetention} due cards</button>{:else}<button on:click={() => goto('/study/plan')}>Open study plan</button>{/if}</div>
+          <div class="study-copy"><h3>{solidTopics} solid topics</h3><p>{assessedTopics} of {PAEDIATRICS_SYLLABUS.length} topics assessed · {questionsToday} questions today</p>{#if dueRetention}<button on:click={() => goto('/study/review')}>Review {dueRetention} due cards</button>{:else}<button on:click={() => goto('/study/plan')}>Open study plan</button>{/if}</div>
         </article>
       </div>
     </section>

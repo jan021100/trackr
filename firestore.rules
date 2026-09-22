@@ -60,6 +60,41 @@ service cloud.firestore {
         allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
       }
 
+      // Structured oral-review outcomes used by the adaptive Surgery queue.
+      match /surgeryReviewEvents/{eventId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Full oral-exam simulation history, kept separate from topic mastery.
+      match /surgerySimulations/{simulationId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Paediatrics has independent state, plan, cards and history. Surgery remains preserved.
+      match /paediatricsTracker/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /paediatricsSessions/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /paediatricsRetentionCards/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /paediatricsPlan/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /paediatricsReviewEvents/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /paediatricsSimulations/{documentId} {
+        allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
       // Life tracker definitions. The app archives records instead of deleting them,
       // preserving habit, maintenance and book history for the authenticated owner.
       match /lifeHabits/{habitId} {

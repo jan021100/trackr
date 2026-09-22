@@ -1,24 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Chart from 'chart.js/auto';
-  import type { SessionSnapshot } from '$lib/study/surgerySchema';
-  import type { StudyPlanProgress } from '$lib/study/studyPlanSchema';
-  import type { SurgeryReviewEvent } from '$lib/study/surgeryReview';
-  import { groupSurgerySessionsByDay, structuredActivityByDay } from '$lib/study/surgeryChart';
+  import type { SessionSnapshot } from '$lib/paediatrics/paediatricsSchema';
+  import type { StudyPlanProgress } from '$lib/paediatrics/studyPlanSchema';
+  import type { PaediatricsReviewEvent } from '$lib/paediatrics/paediatricsReview';
+  import { groupPaediatricsSessionsByDay, structuredActivityByDay } from '$lib/paediatrics/paediatricsChart';
 
   export let sessions: SessionSnapshot[] = [];
   export let planProgress: StudyPlanProgress | null = null;
-  export let reviewEvents: SurgeryReviewEvent[] = [];
+  export let reviewEvents: PaediatricsReviewEvent[] = [];
   let canvas: HTMLCanvasElement;
   let chart: Chart | null = null;
-  $: sessionDays = groupSurgerySessionsByDay(sessions, Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Prague');
+  $: sessionDays = groupPaediatricsSessionsByDay(sessions, Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Prague');
   $: structuredDays = structuredActivityByDay(planProgress, reviewEvents);
   $: dates = [...new Set([...sessionDays.map((day) => day.date), ...structuredDays.map((day) => day.date)])].sort();
   $: daily = dates.map((date) => {
     const exact = sessionDays.find((day) => day.date === date);
     const latest = [...sessionDays].reverse().find((day) => day.date <= date);
     const activity = structuredDays.find((day) => day.date === date);
-    return { date, snapshot: exact ?? latest, firstPasses: activity?.firstPasses ?? 0, secondPasses: activity?.secondPasses ?? 0, gapRepairTopics: activity?.gapRepairTopics ?? 0, gapRepairEquivalent: activity?.gapRepairEquivalent ?? 0, gapsTested: activity?.gapsTested ?? 0, gapsResolved: activity?.gapsResolved ?? 0, studySeconds: exact?.durationSeconds ?? 0, guidedStudySeconds: exact?.guidedDurationSeconds ?? 0, ankiStudySeconds: exact?.ankiDurationSeconds ?? 0 };
+    return { date, snapshot: exact ?? latest, firstPasses: activity?.firstPasses ?? 0, secondPasses: activity?.secondPasses ?? 0, thirdPasses: activity?.thirdPasses ?? 0, gapRepairTopics: activity?.gapRepairTopics ?? 0, gapRepairEquivalent: activity?.gapRepairEquivalent ?? 0, gapsTested: activity?.gapsTested ?? 0, gapsResolved: activity?.gapsResolved ?? 0, studySeconds: exact?.durationSeconds ?? 0, guidedStudySeconds: exact?.guidedDurationSeconds ?? 0, ankiStudySeconds: exact?.ankiDurationSeconds ?? 0 };
   });
 
   const labelFor = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -29,12 +29,17 @@
       labels: daily.map((day) => labelFor(day.date)),
       datasets: [
         {
-          type: 'bar' as const, label: 'First passes completed', data: daily.map((day) => day.firstPasses),
+          type: 'bar' as const, label: 'Pass 2 · Exam recall', data: daily.map((day) => day.thirdPasses),
+          backgroundColor: 'rgba(57,164,182,.30)', borderColor: 'rgba(80,191,207,.80)', borderWidth: 1,
+          borderRadius: 5, categoryPercentage: .78, barPercentage: .86, maxBarThickness: 38, yAxisID: 'topics', stack: 'passes', order: 2
+        },
+        {
+          type: 'bar' as const, label: 'Pass 0 · Learned', data: daily.map((day) => day.firstPasses),
           backgroundColor: 'rgba(111,145,103,.28)', borderColor: 'rgba(137,174,126,.72)', borderWidth: 1,
           borderRadius: 5, categoryPercentage: .78, barPercentage: .86, maxBarThickness: 38, yAxisID: 'topics', stack: 'passes', order: 2
         },
         {
-          type: 'bar' as const, label: 'Second passes completed', data: daily.map((day) => day.secondPasses),
+          type: 'bar' as const, label: 'Pass 1 · Recalled', data: daily.map((day) => day.secondPasses),
           backgroundColor: 'rgba(63,174,139,.30)', borderColor: 'rgba(82,211,169,.80)', borderWidth: 1,
           borderRadius: 5, categoryPercentage: .78, barPercentage: .86, maxBarThickness: 38, yAxisID: 'topics', stack: 'passes', order: 2
         },
@@ -81,7 +86,7 @@
             afterBody: (items) => {
               const day = daily[items[0]?.dataIndex];
               if (!day) return [];
-              const structuredTopics=day.firstPasses+day.secondPasses+day.gapRepairEquivalent;
+              const structuredTopics=day.firstPasses+day.secondPasses+day.thirdPasses+day.gapRepairEquivalent;
               const efficiency = structuredTopics > 0 && day.studySeconds > 0 ? `${Math.round(day.studySeconds / 60 / structuredTopics)} min per topic-equivalent` : null;
               const gapDetail = day.gapsTested > 0 ? `${day.gapRepairTopics} gap-repair topics (${day.gapRepairEquivalent.toFixed(2)} equivalent) · ${day.gapsTested} gaps tested · ${day.gapsResolved} resolved` : null;
               return [efficiency,gapDetail,day.studySeconds === 0 ? 'No tracked timer data for this day' : null].filter((line): line is string => Boolean(line));
@@ -101,7 +106,7 @@
   $: if (canvas && daily) render();
 </script>
 
-<div class="chart-note"><strong>Output versus effort</strong><span>First/Second Pass count as 1 topic each; blue Gap Repair counts as ¼ topic per reviewed topic. Orange is guided study time; violet is Anki review time imported during validation. Same-day passes are never duplicated as Gap Repair.</span></div>
+<div class="chart-note"><strong>Output versus effort</strong><span>Pass 0, 1 and 2 each count as one topic completed in that round; blue Gap Repair counts as ¼ topic per reviewed topic. Orange is guided study time; violet is Anki review time imported during validation. Same-day passes are never duplicated as Gap Repair.</span></div>
 <div class="chart"><canvas bind:this={canvas}></canvas></div>
 
 <style>.chart-note{display:flex;align-items:baseline;gap:9px;margin:0 0 8px;color:#8e95a9;font-size:.65rem}.chart-note strong{color:#e7eaf2;font-size:.7rem}.chart{position:relative;width:100%;height:clamp(280px,32vw,370px)}@media(max-width:600px){.chart-note{display:block}.chart-note span{display:block;margin-top:4px;line-height:1.4}.chart{height:310px}}</style>

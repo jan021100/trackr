@@ -39,3 +39,18 @@ test('patch merge changes only targeted progress and preserves all other topics'
   assert.deepEqual(merged.topics['TO2-01'], untouchedBefore);
   assert.equal(state.topics['TO1-01'].mastery, 0);
 });
+
+test('legacy sessions remain valid and optional review metadata stays optional', () => {
+  const legacy = validatePatch({ schemaVersion: 1, session: { date: '2026-09-01T10:00:00.000Z', label: 'Legacy', questions: 1 } });
+  assert.equal(legacy.session.mode, undefined);
+  assert.equal(legacy.session.planPass, undefined);
+  const reviewed = validatePatch({ schemaVersion: 1, topics: [{ id: 'TO1-01', review: { outcome: 'passed', pass: 'second' }, plan: { secondPassComplete: true } }] });
+  assert.equal(reviewed.topics[0].review.outcome, 'passed');
+});
+
+test('gap repair results are optional, validated, and consistent with resolved IDs', () => {
+  const patch = validatePatch({ schemaVersion: 1, topics: [{ id: 'TO1-01', resolveGapIds: ['gap-a'], review: { outcome: 'passed', pass: 'review', gapResults: [{ gapId: 'gap-a', outcome: 'resolved' }, { gapId: 'gap-b', outcome: 'unchanged' }] } }] });
+  assert.equal(patch.topics[0].review.gapResults.length, 2);
+  assert.throws(() => validatePatch({ schemaVersion: 1, topics: [{ id: 'TO1-01', review: { outcome: 'passed', pass: 'review', gapResults: [{ gapId: 'gap-a', outcome: 'resolved' }] } }] }), /missing from resolveGapIds/);
+  assert.throws(() => validatePatch({ schemaVersion: 1, topics: [{ id: 'TO1-01', resolveGapIds: ['gap-a'], review: { outcome: 'prompted', pass: 'review', gapResults: [{ gapId: 'gap-a', outcome: 'unchanged' }] } }] }), /cannot be unchanged and resolved/);
+});

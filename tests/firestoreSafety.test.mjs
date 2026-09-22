@@ -23,7 +23,7 @@ test('Firestore rules never grant anonymous global access', () => {
 test('all user data collections remain owner-scoped', () => {
   assert.match(rules, /match \/users\/\{userId\}/);
   const lines = rules.split('\n');
-  for (const collection of ['items', 'imageBackups', 'outfits', 'logs', 'meta', 'studyLogs', 'surgeryTracker', 'surgerySessions', 'lifeHabits', 'lifeTasks', 'lifeBooks', 'lifeEntries']) {
+  for (const collection of ['items', 'imageBackups', 'outfits', 'logs', 'meta', 'studyLogs', 'surgeryTracker', 'surgerySessions', 'retentionCards', 'surgeryPlan', 'surgeryReviewEvents', 'surgerySimulations', 'lifeHabits', 'lifeTasks', 'lifeBooks', 'lifeEntries']) {
     const start = lines.findIndex((line) => line.includes(`match /${collection}/{`));
     assert.notEqual(start, -1, `${collection} must remain under the user rule`);
     const collectionRule = lines.slice(start, start + 6).join('\n');
