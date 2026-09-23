@@ -8,11 +8,17 @@ export const PAEDIATRICS_SCHEMA_VERSION = 1 as const;
 export type Mastery = 0 | 1 | 2 | 3 | 4;
 export type TopicStatus = 'unassessed' | 'learning' | 'review' | 'solid';
 
+export type StudyPauseInterval = {
+  startedAt: string;
+  endedAt?: string;
+};
+
 type StudyTimerBase = {
   startedAt: string;
   accumulatedSeconds: number;
   status: 'running' | 'paused';
   runningSince?: string;
+  pauseIntervals?: StudyPauseInterval[];
 };
 
 export type TopicStudyTimer = StudyTimerBase & {
@@ -80,6 +86,7 @@ export type SessionSnapshot = {
   durationSeconds?: number;
   studyStartedAt?: string;
   studyEndedAt?: string;
+  pauseIntervals?: StudyPauseInterval[];
   studySource?: 'trackr' | 'anki';
   studyTimeOrigin?: 'timer' | 'anki-connect';
   studyDay?: string;
@@ -134,6 +141,11 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isoDate = (value: unknown) =>
   typeof value === 'string' && !Number.isNaN(Date.parse(value));
+const validPauseIntervals = (value: unknown) => value === undefined || (Array.isArray(value) && value.every((pause) =>
+  isObject(pause)
+  && isoDate(pause.startedAt)
+  && (pause.endedAt === undefined || (isoDate(pause.endedAt) && Date.parse(pause.endedAt as string) >= Date.parse(pause.startedAt as string)))
+));
 const keysOnly = (value: Record<string, unknown>, allowed: string[]) =>
   Object.keys(value).every((key) => allowed.includes(key));
 
@@ -301,7 +313,7 @@ export function normalizeState(input: unknown): PaediatricsState {
   base.examDate = typeof input.examDate==='string' && (input.examDate===''||/^\d{4}-\d{2}-\d{2}$/.test(input.examDate)) ? input.examDate : PAEDIATRICS_EXAM_DATE;
   if (isObject(input.activeStudyTimer)) {
     const timer = input.activeStudyTimer;
-    const validBase = isoDate(timer.startedAt) && Number.isInteger(timer.accumulatedSeconds) && Number(timer.accumulatedSeconds) >= 0 && ['running', 'paused'].includes(String(timer.status)) && (timer.runningSince === undefined || isoDate(timer.runningSince)) && (timer.status !== 'running' || timer.runningSince !== undefined);
+    const validBase = isoDate(timer.startedAt) && Number.isInteger(timer.accumulatedSeconds) && Number(timer.accumulatedSeconds) >= 0 && ['running', 'paused'].includes(String(timer.status)) && (timer.runningSince === undefined || isoDate(timer.runningSince)) && (timer.status !== 'running' || timer.runningSince !== undefined) && validPauseIntervals(timer.pauseIntervals);
     const validTopic = (timer.kind === undefined || timer.kind === 'topic') && typeof timer.topicId === 'string' && PAEDIATRICS_TOPIC_IDS.has(timer.topicId);
     const validAnki = timer.kind === 'anki-gap' && typeof timer.batchId === 'string' && Array.isArray(timer.topicIds) && timer.topicIds.every((id) => typeof id === 'string' && PAEDIATRICS_TOPIC_IDS.has(id)) && Array.isArray(timer.gapIds) && timer.gapIds.every((id) => typeof id === 'string');
     if (!validBase || (!validTopic && !validAnki)) throw new Error('Backup contains an invalid active study timer.');
@@ -326,7 +338,7 @@ export function validateBackup(input: unknown): PaediatricsBackup {
   const topicId=(id:unknown)=>{if(typeof id!=='string'||!PAEDIATRICS_TOPIC_IDS.has(id))throw new Error(`Backup contains an invalid Paediatrics topic: ${String(id)}.`);};
   const topicIds=(ids:unknown)=>{if(!Array.isArray(ids))throw new Error('Backup topic IDs must be an array.');ids.forEach(topicId);};
   const records=(key:string)=>{const value=input[key]??[];if(!Array.isArray(value))throw new Error(`Backup ${key} must be an array.`);const seen=new Set<string>();for(const row of value){if(!isObject(row)||!validDocumentId(row.id)||seen.has(row.id as string))throw new Error(`Backup ${key} contains an invalid or duplicate record ID.`);seen.add(row.id as string);}return value as Record<string,unknown>[];};
-  for(const session of records('sessions')) { if(!isoDate(session.date)||!isoDate(session.createdAt)||typeof session.label!=='string'||!Number.isInteger(session.questions)||Number(session.questions)<0)throw new Error('Backup contains an invalid session.');if(session.topicIds!==undefined)topicIds(session.topicIds); }
+  for(const session of records('sessions')) { if(!isoDate(session.date)||!isoDate(session.createdAt)||typeof session.label!=='string'||!Number.isInteger(session.questions)||Number(session.questions)<0||!validPauseIntervals(session.pauseIntervals))throw new Error('Backup contains an invalid session.');if(session.topicIds!==undefined)topicIds(session.topicIds); }
   for(const review of records('reviews')) { topicId(review.topicId);if(review.oralAssessment!==undefined)validateOralAssessment(review.oralAssessment);if(!isoDate(review.reviewedAt)||!['studied','failed','prompted','passed','fluent'].includes(String(review.outcome)) || (review.outcome==='studied' && review.pass!=='first'))throw new Error('Backup contains an invalid review.'); }
   for(const simulation of records('simulations')) { topicIds(simulation.topicIds);if(!isoDate(simulation.date)||!['failed','prompted','passed','fluent'].includes(String(simulation.outcome)))throw new Error('Backup contains an invalid simulation.'); }
   for(const card of records('retentionCards')) { topicId(card.topicId);if(typeof card.front!=='string'||typeof card.back!=='string'||!Array.isArray(card.tags)||!Array.isArray(card.reviews)||!['active','suspended','archived'].includes(String(card.status))||!isoDate(card.dueAt)||!isoDate(card.createdAt))throw new Error('Backup contains an invalid retention card.'); }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmptyPaediatricsState } from '../src/lib/paediatrics/paediatricsSchema.ts';
-import { cancelStudyTimer, pauseStudyTimer, startStudyTimer } from '../src/lib/paediatrics/studyTimer.ts';
+import { cancelStudyTimer, finishStudyTimer, pauseStudyTimer, resumeStudyTimer, startStudyTimer } from '../src/lib/paediatrics/studyTimer.ts';
 
 const started = new Date('2026-09-12T21:00:00.000Z');
 const ended = new Date('2026-09-13T07:00:00.000Z');
@@ -49,4 +49,19 @@ test('legacy Anki cancellation only accepts the matching batch and creates no re
   assert.deepEqual(Object.keys(result).sort(), ['cancelled', 'state']);
   assert.deepEqual(result.state.topics, state.topics);
   assert.equal(result.state.activeStudyTimer, undefined);
+});
+
+test('Paediatrics timer retains every break with exact start and end time', () => {
+  const state = createEmptyPaediatricsState('2026-09-22T08:00:00.000Z');
+  let timer = startStudyTimer('1a', new Date('2026-09-22T08:00:00.000Z'));
+  timer = pauseStudyTimer(timer, new Date('2026-09-22T08:10:00.000Z'));
+  timer = resumeStudyTimer(timer, new Date('2026-09-22T08:25:00.000Z'));
+  timer = pauseStudyTimer(timer, new Date('2026-09-22T08:40:00.000Z'));
+  state.activeStudyTimer = timer;
+  const result = finishStudyTimer(state, new Date('2026-09-22T08:45:00.000Z'));
+  assert.equal(result.durationSeconds, 1500);
+  assert.deepEqual(result.timer.pauseIntervals, [
+    { startedAt: '2026-09-22T08:10:00.000Z', endedAt: '2026-09-22T08:25:00.000Z' },
+    { startedAt: '2026-09-22T08:40:00.000Z', endedAt: '2026-09-22T08:45:00.000Z' }
+  ]);
 });

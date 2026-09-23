@@ -18,7 +18,7 @@ export function isAnkiStudyTimer(timer: ActiveStudyTimer | undefined): timer is 
 
 export function startStudyTimer(topicId: string, now = new Date()): TopicStudyTimer {
   const stamp = now.toISOString();
-  return { topicId, startedAt: stamp, runningSince: stamp, accumulatedSeconds: 0, status: 'running' };
+  return { topicId, startedAt: stamp, runningSince: stamp, accumulatedSeconds: 0, status: 'running', pauseIntervals: [] };
 }
 
 export function startAnkiStudyTimer(gapIds: string[], topicIds: string[], now = new Date()): AnkiStudyTimer {
@@ -31,28 +31,44 @@ export function startAnkiStudyTimer(gapIds: string[], topicIds: string[], now = 
     startedAt: stamp,
     runningSince: stamp,
     accumulatedSeconds: 0,
-    status: 'running'
+    status: 'running',
+    pauseIntervals: []
   };
 }
 
 export function pauseStudyTimer(timer: ActiveStudyTimer, now = new Date()): ActiveStudyTimer {
+  if (timer.status === 'paused') return timer;
   const { runningSince: _runningSince, ...rest } = timer;
-  return { ...rest, accumulatedSeconds: timerElapsedSeconds(timer, now.getTime()), status: 'paused' } as ActiveStudyTimer;
+  return {
+    ...rest,
+    accumulatedSeconds: timerElapsedSeconds(timer, now.getTime()),
+    status: 'paused',
+    pauseIntervals: [...(timer.pauseIntervals ?? []), { startedAt: now.toISOString() }]
+  } as ActiveStudyTimer;
 }
 
 export function resumeStudyTimer(timer: ActiveStudyTimer, now = new Date()): ActiveStudyTimer {
   if (timer.status === 'running') return timer;
-  return { ...timer, status: 'running', runningSince: now.toISOString() };
+  const endedAt = now.toISOString();
+  const pauses = [...(timer.pauseIntervals ?? [])];
+  const last = pauses.at(-1);
+  if (last && last.endedAt === undefined) pauses[pauses.length - 1] = { ...last, endedAt };
+  return { ...timer, status: 'running', runningSince: endedAt, pauseIntervals: pauses };
 }
 
 export function finishStudyTimer(state: PaediatricsState, now = new Date()) {
   const next = structuredClone(state);
   const timer = next.activeStudyTimer;
   if (!timer) return { state: next, timer: undefined, durationSeconds: 0, endedAt: now.toISOString() };
+  const endedAt = now.toISOString();
+  const pauses = [...(timer.pauseIntervals ?? [])];
+  const last = pauses.at(-1);
+  if (last && last.endedAt === undefined) pauses[pauses.length - 1] = { ...last, endedAt };
+  const finishedTimer = { ...timer, pauseIntervals: pauses } as ActiveStudyTimer;
   const durationSeconds = timerElapsedSeconds(timer, now.getTime());
   delete next.activeStudyTimer;
-  next.updatedAt = now.toISOString();
-  return { state: next, timer, durationSeconds, endedAt: now.toISOString() };
+  next.updatedAt = endedAt;
+  return { state: next, timer: finishedTimer, durationSeconds, endedAt };
 }
 
 export function cancelStudyTimer(state: PaediatricsState, expected: ActiveStudyTimer, now = new Date()) {

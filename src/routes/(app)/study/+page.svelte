@@ -6,7 +6,7 @@
   import { makePaediatricsLearningBrief, makePaediatricsImagingPrompt, makePaediatricsGapOnlyPrompt, makePaediatricsAssessmentOnlyPrompt, withPaediatricsStudyApproach, PAEDIATRICS_EXAM_FORMAT, PAEDIATRICS_EXAM_REQUIREMENTS_URL } from '$lib/paediatrics/studyApproach';
   import { user, userReady } from '$lib/stores/user';
   import AnkiStatsPanel from '$lib/components/AnkiStatsPanel.svelte';
-  import PaediatricsDayTimeline from '$lib/components/PaediatricsDayTimeline.svelte';
+  import PaediatricsWeekTimeline from '$lib/components/PaediatricsWeekTimeline.svelte';
   import PaediatricsProgressChart from '$lib/components/PaediatricsProgressChart.svelte';
   import { PAEDIATRICS_BLOCKS, PAEDIATRICS_EXAM_DATE, PAEDIATRICS_SYLLABUS, PAEDIATRICS_RESOURCES, type PaediatricsTopicDefinition } from '$lib/paediatrics/paediatricsSyllabus';
   import {
@@ -356,17 +356,17 @@
     finally { saving = false; }
   }
 
-  function timedSnapshot(next: PaediatricsState, topicId: string, startedAt: string, endedAt: string, durationSeconds: number): SessionSnapshot {
+  function timedSnapshot(next: PaediatricsState, topicId: string, startedAt: string, endedAt: string, durationSeconds: number, pauseIntervals: SessionSnapshot['pauseIntervals'] = []): SessionSnapshot {
     const topic = PAEDIATRICS_SYLLABUS.find((item) => item.id === topicId);
     const assessedCount = Object.values(next.topics).filter((item) => item.status !== 'unassessed').length;
     const mastery = Object.values(next.topics).reduce((sum, item) => sum + item.mastery, 0) / Math.max(1, assessedCount);
-    return { id: crypto.randomUUID(), date: endedAt, label: `${topicId} · ${topic?.title ?? 'Timed study'}`, questions: 0, averageMastery: Number(mastery.toFixed(2)), assessedTopics: assessedCount, createdAt: endedAt, topicIds: [topicId], durationSeconds, studyStartedAt: startedAt, studyEndedAt: endedAt, studySource: 'trackr' };
+    return { id: crypto.randomUUID(), date: endedAt, label: `${topicId} · ${topic?.title ?? 'Timed study'}`, questions: 0, averageMastery: Number(mastery.toFixed(2)), assessedTopics: assessedCount, createdAt: endedAt, topicIds: [topicId], durationSeconds, studyStartedAt: startedAt, studyEndedAt: endedAt, studySource: 'trackr', ...(pauseIntervals.length ? { pauseIntervals } : {}) };
   }
 
-  function ankiTimedSnapshot(next: PaediatricsState, startedAt: string, endedAt: string, durationSeconds: number, topicIds: string[], gapIds: string[]): SessionSnapshot {
+  function ankiTimedSnapshot(next: PaediatricsState, startedAt: string, endedAt: string, durationSeconds: number, topicIds: string[], gapIds: string[], pauseIntervals: SessionSnapshot['pauseIntervals'] = []): SessionSnapshot {
     const assessedCount = Object.values(next.topics).filter((item) => item.status !== 'unassessed').length;
     const mastery = Object.values(next.topics).reduce((sum, item) => sum + item.mastery, 0) / Math.max(1, assessedCount);
-    return { id: crypto.randomUUID(), date: endedAt, label: 'Anki gap study', questions: 0, averageMastery: Number(mastery.toFixed(2)), assessedTopics: assessedCount, createdAt: endedAt, mode: 'retention', planPass: 'review', topicIds, gapIds, durationSeconds, studyStartedAt: startedAt, studyEndedAt: endedAt, studySource: 'anki', studyTimeOrigin: 'timer' };
+    return { id: crypto.randomUUID(), date: endedAt, label: 'Anki gap study', questions: 0, averageMastery: Number(mastery.toFixed(2)), assessedTopics: assessedCount, createdAt: endedAt, mode: 'retention', planPass: 'review', topicIds, gapIds, durationSeconds, studyStartedAt: startedAt, studyEndedAt: endedAt, studySource: 'anki', studyTimeOrigin: 'timer', ...(pauseIntervals.length ? { pauseIntervals } : {}) };
   }
 
   function ankiConnectSnapshot(day: AnkiDailyStudyTime, syncedAt: string): SessionSnapshot {
@@ -402,8 +402,8 @@
     const result = finishStudyTimer(state, new Date());
     const timer = result.timer!;
     const snapshot = isAnkiStudyTimer(timer)
-      ? ankiTimedSnapshot(result.state, timer.startedAt, result.endedAt, result.durationSeconds, timer.topicIds, timer.gapIds)
-      : timedSnapshot(result.state, timer.topicId, timer.startedAt, result.endedAt, result.durationSeconds);
+      ? ankiTimedSnapshot(result.state, timer.startedAt, result.endedAt, result.durationSeconds, timer.topicIds, timer.gapIds, timer.pauseIntervals)
+      : timedSnapshot(result.state, timer.topicId, timer.startedAt, result.endedAt, result.durationSeconds, timer.pauseIntervals);
     await persist(result.state, snapshot);
     notice = `${isAnkiStudyTimer(timer) ? 'Anki gap study' : timer.topicId} finished · ${formatStudyDuration(result.durationSeconds)} recorded.`;
     if (syncAnki && isAnkiStudyTimer(timer)) await syncAnkiProgress();
@@ -724,9 +724,9 @@
         assessedTopics: Object.values(next.topics).filter((topic) => topic.status !== 'unassessed').length, createdAt: new Date().toISOString(), topicIds: (patch.topics ?? []).map((topic) => topic.id),
         ...(patch.session.mode !== undefined ? { mode: patch.session.mode } : {}),
         ...(patch.session.planPass !== undefined ? { planPass: patch.session.planPass } : {}),
-        ...(timerResult?.timer && isTopicStudyTimer(timerResult.timer) ? { durationSeconds: timerResult.durationSeconds, studyStartedAt: timerResult.timer.startedAt, studyEndedAt: timerResult.endedAt, studySource: 'trackr' as const } : {})
+        ...(timerResult?.timer && isTopicStudyTimer(timerResult.timer) ? { durationSeconds: timerResult.durationSeconds, studyStartedAt: timerResult.timer.startedAt, studyEndedAt: timerResult.endedAt, studySource: 'trackr' as const, ...(timerResult.timer.pauseIntervals?.length ? { pauseIntervals: timerResult.timer.pauseIntervals } : {}) } : {})
       };
-      else if (timerResult?.timer && isTopicStudyTimer(timerResult.timer)) snapshot = timedSnapshot(next, timerResult.timer.topicId, timerResult.timer.startedAt, timerResult.endedAt, timerResult.durationSeconds);
+      else if (timerResult?.timer && isTopicStudyTimer(timerResult.timer)) snapshot = timedSnapshot(next, timerResult.timer.topicId, timerResult.timer.startedAt, timerResult.endedAt, timerResult.durationSeconds, timerResult.timer.pauseIntervals);
       const cardInputs = (patch.topics ?? []).flatMap((topic) => (topic.addCards ?? []).map((card) => ({ ...card, topicId: topic.id, sourceSessionId: snapshot?.id })));
       const { unique: uniqueCardInputs, skipped: skippedCards } = removeDuplicateCardInputs(cardInputs, retentionCards);
       const cards = uniqueCardInputs.map((card) => createRetentionCard(card));
@@ -1075,9 +1075,9 @@ Rules:
         </div>
       </section>
 
-      <section class="panel wide study-day-panel"><div class="panel-head"><div><p class="eyebrow">STUDY DAY</p><h2>When you studied</h2><p>Completed timer sessions in your local time, including active duration after pauses.</p></div></div><PaediatricsDayTimeline {sessions} timeZone={localTimeZone} /></section>
+      <section class="panel trajectory-panel"><div class="panel-head"><div><p class="eyebrow">TRAJECTORY</p><h2>Progress over time</h2></div></div>{#if sessions.length || planProgress}<PaediatricsProgressChart {sessions} {planProgress} {reviewEvents} />{:else}<div class="empty">A chart appears after your first study-plan completion.</div>{/if}</section>
 
-      <section class="panel"><div class="panel-head"><div><p class="eyebrow">TRAJECTORY</p><h2>Progress over time</h2></div></div>{#if sessions.length || planProgress}<PaediatricsProgressChart {sessions} {planProgress} {reviewEvents} />{:else}<div class="empty">A chart appears after your first study-plan completion.</div>{/if}</section>
+      <section class="panel study-week-panel"><div class="panel-head"><div><p class="eyebrow">STUDY WEEK</p><h2>When you studied</h2><p>Session windows, active time and recorded breaks for each topic.</p></div></div><PaediatricsWeekTimeline {sessions} timeZone={localTimeZone} /></section>
 
       <section class="panel mobile-readonly-panel"><div class="panel-head"><div><p class="eyebrow danger-text">PRIORITY</p><h2>Red zones</h2></div><span class="count">{redZones.length}</span></div>
         {#if redZones.length}<div class="red-list">{#each redZones.slice(0, 8) as item}<button on:click={() => openTopic(item.definition)}><span>{item.definition.id}<small>{activeGaps(item.progress).length} gaps · {oralSummary(item.progress).label}</small></span><b>Review</b></button>{/each}</div>{:else}<div class="empty">No weak areas or open gaps yet.</div>{/if}

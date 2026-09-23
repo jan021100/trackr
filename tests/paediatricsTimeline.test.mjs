@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStudyDayTimeline } from '../src/lib/paediatrics/studyTimeline.ts';
+import { buildStudyDayTimeline, buildStudyWeekTimeline } from '../src/lib/paediatrics/studyTimeline.ts';
 
 const session = (id, extra = {}) => ({
   id,
@@ -26,6 +26,31 @@ test('timeline places completed timers at Prague clock time and keeps active tim
   assert.equal(result.timed[0].startMinute, 600);
   assert.equal(result.timed[0].endMinute, 660);
   assert.equal(result.timed[0].durationSeconds, 1800, 'a one-hour window can contain only 30 active minutes after pauses');
+  assert.equal(result.timed[0].unlocatedPauseSeconds, 1800, 'older sessions retain their pause total even without interval details');
+});
+
+test('timeline exposes exact break intervals and weekly totals', () => {
+  const timed = session('1a', {
+    topicIds: ['1a'],
+    durationSeconds: 1500,
+    studyStartedAt: '2026-09-22T08:00:00.000Z',
+    studyEndedAt: '2026-09-22T08:45:00.000Z',
+    studySource: 'trackr',
+    pauseIntervals: [
+      { startedAt: '2026-09-22T08:10:00.000Z', endedAt: '2026-09-22T08:25:00.000Z' },
+      { startedAt: '2026-09-22T08:40:00.000Z', endedAt: '2026-09-22T08:45:00.000Z' }
+    ]
+  });
+  const day = buildStudyDayTimeline([timed], '2026-09-22', 'Europe/Prague');
+  assert.deepEqual(day.timed[0].pauses.map((pause) => pause.clockLabel), ['10:10–10:25', '10:40–10:45']);
+  assert.equal(day.timed[0].totalPauseSeconds, 1200);
+  assert.equal(day.timed[0].unlocatedPauseSeconds, 0);
+  const week = buildStudyWeekTimeline([timed], '2026-09-23', 'Europe/Prague');
+  assert.equal(week.startDate, '2026-09-21');
+  assert.equal(week.endDate, '2026-09-27');
+  assert.equal(week.days.length, 7);
+  assert.equal(week.totalSeconds, 1500);
+  assert.equal(week.timedBlocks, 1);
 });
 
 test('AnkiConnect time replaces legacy Anki timer rows without hiding Trackr study', () => {
