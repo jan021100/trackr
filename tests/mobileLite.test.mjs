@@ -30,6 +30,8 @@ test('mobile Study keeps the learning loop while hiding secondary administration
   assert.match(study, />Retention</);
   assert.match(study, /Copy study prompt/);
   assert.match(study, /class="panel wide import-panel"/);
+  assert.match(study, /class="panel wide study-day-panel"/);
+  assert.match(study, /<PaediatricsDayTimeline \{sessions\} timeZone=\{localTimeZone\}/);
   assert.match(study, /class="primary mobile-patch-apply"[^>]*on:click=\{applyJsonPatch\}/);
   assert.match(study, /\.desktop-study-control,\.topics-panel,\.patch-admin-control\{display:none!important\}/);
   assert.doesNotMatch(study, /\.desktop-study-control,\.import-panel,\.topics-panel\{display:none!important\}/);

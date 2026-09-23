@@ -6,6 +6,7 @@
   import { makePaediatricsLearningBrief, makePaediatricsImagingPrompt, makePaediatricsGapOnlyPrompt, makePaediatricsAssessmentOnlyPrompt, withPaediatricsStudyApproach, PAEDIATRICS_EXAM_FORMAT, PAEDIATRICS_EXAM_REQUIREMENTS_URL } from '$lib/paediatrics/studyApproach';
   import { user, userReady } from '$lib/stores/user';
   import AnkiStatsPanel from '$lib/components/AnkiStatsPanel.svelte';
+  import PaediatricsDayTimeline from '$lib/components/PaediatricsDayTimeline.svelte';
   import PaediatricsProgressChart from '$lib/components/PaediatricsProgressChart.svelte';
   import { PAEDIATRICS_BLOCKS, PAEDIATRICS_EXAM_DATE, PAEDIATRICS_SYLLABUS, PAEDIATRICS_RESOURCES, type PaediatricsTopicDefinition } from '$lib/paediatrics/paediatricsSyllabus';
   import {
@@ -1073,6 +1074,8 @@ Rules:
           {/each}
         </div>
       </section>
+
+      <section class="panel wide study-day-panel"><div class="panel-head"><div><p class="eyebrow">STUDY DAY</p><h2>When you studied</h2><p>Completed timer sessions in your local time, including active duration after pauses.</p></div></div><PaediatricsDayTimeline {sessions} timeZone={localTimeZone} /></section>
 
       <section class="panel"><div class="panel-head"><div><p class="eyebrow">TRAJECTORY</p><h2>Progress over time</h2></div></div>{#if sessions.length || planProgress}<PaediatricsProgressChart {sessions} {planProgress} {reviewEvents} />{:else}<div class="empty">A chart appears after your first study-plan completion.</div>{/if}</section>
 
