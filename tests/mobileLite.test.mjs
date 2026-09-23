@@ -30,6 +30,8 @@ test('mobile Study keeps the learning loop while hiding secondary administration
   assert.match(study, />Retention</);
   assert.match(study, /Copy study prompt/);
   assert.match(study, /class="panel wide import-panel"/);
+  assert.match(study, /class="panel wide mobile-readonly-panel priority-panel"/);
+  assert.ok(study.indexOf('class="panel wide import-panel"') < study.indexOf('class="panel wide mobile-readonly-panel priority-panel"'), 'patch input stays above the compact priority strip');
   assert.match(study, /class="panel study-week-panel"/);
   assert.match(study, /<PaediatricsWeekTimeline \{sessions\} timeZone=\{localTimeZone\}/);
   assert.match(study, /class="primary mobile-patch-apply"[^>]*on:click=\{applyJsonPatch\}/);
