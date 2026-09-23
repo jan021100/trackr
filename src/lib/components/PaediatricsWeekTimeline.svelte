@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { buildStudyWeekTimeline, weekStartFor } from '$lib/paediatrics/studyTimeline';
+  import { buildRecentStudyTimeline, type StudyTimelineEntry } from '$lib/paediatrics/studyTimeline';
   import type { SessionSnapshot } from '$lib/paediatrics/paediatricsSchema';
-  import { shiftDateKey } from '$lib/paediatrics/ankiStudyTime';
   import { formatStudyDurationCompact } from '$lib/paediatrics/studyTimer';
 
   export let sessions: SessionSnapshot[] = [];
@@ -14,54 +13,40 @@
   }
 
   const label = (date: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(undefined, { ...options, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00.000Z`));
-  const dayLabel = (date: string) => label(date, { weekday: 'short', month: 'short', day: 'numeric' });
-  const weekLabel = (start: string, end: string) => `${label(start, { month: 'short', day: 'numeric' })}–${label(end, { month: 'short', day: 'numeric' })}`;
-  const left = (minute?: number) => `${Math.max(0, Math.min(1440, minute ?? 0)) / 14.4}%`;
-  const width = (start?: number, end?: number) => `${Math.max(0.8, (Math.min(1440, end ?? 0) - Math.max(0, start ?? 0)) / 14.4)}%`;
+  const top = (minute?: number) => `${Math.max(0, Math.min(1440, minute ?? 0)) / 14.4}%`;
+  const height = (start?: number, end?: number) => `${Math.max(1.2, (Math.min(1440, end ?? 0) - Math.max(0, start ?? 0)) / 14.4)}%`;
+  const sessionTitle = (entry: StudyTimelineEntry) => [entry.label, entry.clockLabel, `${formatStudyDurationCompact(entry.durationSeconds)} active`, entry.pauses.length ? `Breaks: ${entry.pauses.map((pause) => pause.clockLabel).join(', ')}` : entry.unlocatedPauseSeconds ? `${formatStudyDurationCompact(entry.unlocatedPauseSeconds)} paused; exact times unavailable` : 'No breaks'].join(' · ');
 
-  let selectedWeek = weekStartFor(todayInTimeZone());
   $: today = todayInTimeZone();
-  $: currentWeek = weekStartFor(today);
-  $: week = buildStudyWeekTimeline(sessions, selectedWeek, timeZone);
-
-  function move(weeks: number) { selectedWeek = shiftDateKey(selectedWeek, weeks * 7); }
-  function chooseWeek() { selectedWeek = weekStartFor(selectedWeek); }
+  $: timeline = buildRecentStudyTimeline(sessions, today, timeZone);
 </script>
 
-<div class="week-toolbar">
-  <div class="week-total"><strong>{formatStudyDurationCompact(week.totalSeconds)}</strong><span>active this week</span><small>{week.timedBlocks} timed {week.timedBlocks === 1 ? 'session' : 'sessions'}{week.markers ? ` · ${week.markers} logs` : ''}</small></div>
-  <div class="week-controls"><button aria-label="Previous study week" on:click={() => move(-1)}>‹</button><input aria-label="Study week" type="date" bind:value={selectedWeek} max={today} on:change={chooseWeek} /><button aria-label="Next study week" disabled={selectedWeek >= currentWeek} on:click={() => move(1)}>›</button></div>
-</div>
-<div class="week-range"><b>{weekLabel(week.startDate, week.endDate)}</b>{#if selectedWeek !== currentWeek}<button on:click={() => selectedWeek = currentWeek}>This week</button>{/if}</div>
+<div class="timeline-summary"><strong>{formatStudyDurationCompact(timeline.totalSeconds)}</strong><span>active across the last 7 days</span><small>{label(timeline.startDate, { month: 'short', day: 'numeric' })}–{label(timeline.endDate, { month: 'short', day: 'numeric' })}</small></div>
 
-<div class="week-days">
-  {#each week.days as day}
-    <article class:studied={day.timed.length > 0}>
-      <header><b>{dayLabel(day.date)}</b><span>{day.totalSeconds ? formatStudyDurationCompact(day.totalSeconds) : '—'}</span></header>
-      {#if day.timed.length}
-        <div class="day-sessions">
-          {#each day.timed as entry}
-            <div class="session">
-              <div class="session-head"><strong>{entry.topicIds.length ? entry.topicIds.join(', ') : entry.label}</strong><span>{entry.clockLabel}</span></div>
-              <div class="session-meta"><span>{formatStudyDurationCompact(entry.durationSeconds)} active</span>{#if entry.totalPauseSeconds}<span class="paused">{formatStudyDurationCompact(entry.totalPauseSeconds)} paused</span>{/if}<small>{entry.source === 'anki' ? 'Anki' : 'Trackr'}</small></div>
-              {#if entry.exactDayPlacement}
-                <div class="rail" title={`${entry.clockLabel} · ${formatStudyDurationCompact(entry.durationSeconds)} active`}><i class:anki={entry.source === 'anki'} style={`left:${left(entry.startMinute)};width:${width(entry.startMinute, entry.endMinute)}`}></i>{#each entry.pauses.filter((pause) => pause.exactDayPlacement) as pause}<span class="pause-bar" style={`left:${left(pause.startMinute)};width:${width(pause.startMinute, pause.endMinute)}`} title={`Break ${pause.clockLabel}`}></span>{/each}</div>
-              {/if}
-              {#if entry.pauses.length}<div class="break-list">{#each entry.pauses as pause}<em>Break {pause.clockLabel}</em>{/each}</div>{:else if entry.unlocatedPauseSeconds}<div class="legacy-break">{formatStudyDurationCompact(entry.unlocatedPauseSeconds)} paused · exact break times were not stored</div>{/if}
-            </div>
-          {/each}
-        </div>
-      {:else if day.markers.length}
-        <div class="log-only">{day.markers.map((entry) => entry.topicIds.join(', ') || entry.label).join(' · ')} <small>logged without timer</small></div>
-      {/if}
-    </article>
-  {/each}
+<div class="week-plot" aria-label="Study sessions over the last seven days on a 24-hour vertical time axis">
+  <div class="plot-corner"></div>
+  <div class="day-heads">
+    {#each timeline.days as day, index}
+      <div class:today={index === 6}><b>{index === 6 ? 'Today' : label(day.date, { weekday: 'short' })}</b><span>{label(day.date, { day: 'numeric' })}</span><small>{day.totalSeconds ? formatStudyDurationCompact(day.totalSeconds) : '—'}</small></div>
+    {/each}
+  </div>
+  <div class="time-axis">{#each [{ label: '00', position: 0 }, { label: '06', position: 25 }, { label: '12', position: 50 }, { label: '18', position: 75 }, { label: '24', position: 100 }] as tick}<span style={`top:${tick.position}%`}>{tick.label}</span>{/each}</div>
+  <div class="day-tracks">
+    {#each timeline.days as day, dayIndex}
+      <div class="day-track" class:today={dayIndex === 6}>
+        {#each day.timed.filter((entry) => entry.exactDayPlacement) as entry}
+          <div class="study-block" class:anki={entry.source === 'anki'} class:legacy-pause={entry.unlocatedPauseSeconds > 0} style={`top:${top(entry.startMinute)};height:${height(entry.startMinute, entry.endMinute)}`} title={sessionTitle(entry)} aria-label={sessionTitle(entry)}>{#if (entry.endMinute ?? 0) - (entry.startMinute ?? 0) >= 75}<b>{entry.topicIds.join(', ')}</b>{/if}</div>
+          {#each entry.pauses.filter((pause) => pause.exactDayPlacement) as pause}<div class="pause-block" style={`top:${top(pause.startMinute)};height:${height(pause.startMinute, pause.endMinute)}`} title={`Break ${pause.clockLabel}`}></div>{/each}
+        {/each}
+        {#if day.markers.length}<i class="log-marker" title={`${day.markers.length} session log(s) without timer`}>{day.markers.length}</i>{/if}
+      </div>
+    {/each}
+  </div>
 </div>
 
-<p class="timeline-note"><i></i> Session window <i class="break-key"></i> recorded break. Start, end and every new pause interval are saved per session; active time excludes all pauses.</p>
+<div class="legend"><span><i></i>Trackr study</span><span><i class="anki"></i>Anki</span><span><i class="pause"></i>Break</span></div>
 
 <style>
-  .week-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.week-total strong,.week-total span,.week-total small{display:block}.week-total strong{font-size:1.35rem}.week-total span{margin-top:1px;color:#dfe3ee;font-size:.68rem}.week-total small{margin-top:3px;color:#7f889a;font-size:.57rem}.week-controls{display:flex;align-items:center;gap:5px}.week-controls button,.week-controls input{height:32px;box-sizing:border-box;border:1px solid #333a48;border-radius:8px;background:#151a22;color:#e9ecf3;font:inherit}.week-controls button{min-width:32px;padding:0 8px;cursor:pointer}.week-controls button:disabled{opacity:.35;cursor:not-allowed}.week-controls input{width:125px;padding:0 7px;color-scheme:dark;font-size:.62rem}.week-range{display:flex;align-items:center;justify-content:space-between;margin:11px 0 8px;color:#858ea0;font-size:.59rem}.week-range button{border:0;background:transparent;color:#8f9cff;font:inherit;font-weight:750;cursor:pointer}.week-days{display:grid;gap:5px}.week-days>article{padding:7px 8px;border:1px solid #282e39;border-radius:9px;background:#12171f}.week-days>article.studied{border-color:#303846;background:#141a23}.week-days header{display:flex;align-items:center;justify-content:space-between;color:#717a8c;font-size:.58rem}.week-days article.studied header b{color:#dfe3ec}.week-days header span{font-weight:750}.day-sessions{display:grid;gap:6px;margin-top:6px}.session{padding-top:6px;border-top:1px solid #272e39}.session-head,.session-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}.session-head strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.64rem}.session-head span{flex:none;color:#aeb5c4;font-size:.57rem}.session-meta{justify-content:flex-start;margin-top:3px;color:#d5a064;font-size:.53rem}.session-meta .paused{color:#c38e75}.session-meta small{margin-left:auto;color:#737d90}.rail{position:relative;height:11px;margin-top:5px;border-radius:4px;background:repeating-linear-gradient(90deg,#1a2029 0,#1a2029 calc(25% - 1px),#2b323e calc(25% - 1px),#2b323e 25%);overflow:hidden}.rail i{position:absolute;top:2px;bottom:2px;min-width:3px;border-radius:3px;background:#68bd9e}.rail i.anki{background:#9284ee}.pause-bar{position:absolute;top:1px;bottom:1px;z-index:2;min-width:3px;border-radius:2px;background:#d38865;box-shadow:0 0 0 1px rgba(15,18,24,.7)}.break-list{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}.break-list em,.legacy-break{padding:2px 5px;border-radius:4px;background:#2d2422;color:#d6a08a;font-size:.5rem;font-style:normal}.legacy-break{display:inline-block;margin-top:5px;background:#24252a;color:#858d9c}.log-only{margin-top:5px;color:#aab1bf;font-size:.56rem}.log-only small{color:#747d8e}.timeline-note{margin:10px 0 0;color:#747d90;font-size:.54rem;line-height:1.4}.timeline-note i{display:inline-block;width:9px;height:5px;margin:0 3px;border-radius:2px;background:#68bd9e}.timeline-note i.break-key{background:#d38865}
-  @media(max-width:900px){.week-toolbar{align-items:flex-start}.week-controls{flex-wrap:wrap;justify-content:flex-end}.week-days>article{padding:8px 9px}}
-  @media(max-width:430px){.week-toolbar{display:block}.week-controls{justify-content:flex-start;margin-top:10px}.week-controls input{flex:1}.session-head{align-items:flex-start}.session-head span{font-size:.54rem}}
+  .timeline-summary{display:flex;align-items:baseline;gap:8px;height:23px;margin-bottom:8px;color:#8e95a9;font-size:.61rem}.timeline-summary strong{color:#e7eaf2;font-size:.78rem}.timeline-summary small{margin-left:auto;color:#70798b}.week-plot{height:clamp(280px,32vw,370px);display:grid;grid-template-columns:27px minmax(0,1fr);grid-template-rows:38px minmax(0,1fr);min-width:0}.plot-corner{grid-column:1;grid-row:1}.day-heads{grid-column:2;grid-row:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.day-heads>div{min-width:0;text-align:center;color:#70798c}.day-heads b,.day-heads span,.day-heads small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.day-heads b{font-size:.52rem;text-transform:uppercase}.day-heads span{margin-top:1px;font-size:.54rem}.day-heads small{margin-top:2px;color:#929bad;font-size:.47rem}.day-heads .today b,.day-heads .today span{color:#cdd4ff}.time-axis{position:relative;grid-column:1;grid-row:2;color:#667084;font-size:.48rem}.time-axis span{position:absolute;right:5px;transform:translateY(-50%)}.time-axis span:first-child{transform:none}.time-axis span:last-child{transform:translateY(-100%)}.day-tracks{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;min-height:0}.day-track{position:relative;min-width:0;border:1px solid #282f3a;border-radius:6px;background:repeating-linear-gradient(to bottom,#151b23 0,#151b23 calc(25% - 1px),#29313d calc(25% - 1px),#29313d 25%);overflow:hidden}.day-track.today{border-color:#46506b;background:repeating-linear-gradient(to bottom,#181e2a 0,#181e2a calc(25% - 1px),#323b4c calc(25% - 1px),#323b4c 25%)}.study-block,.pause-block{position:absolute;left:13%;right:13%;z-index:1;min-height:3px;border-radius:3px;background:linear-gradient(180deg,#73cfad,#4c927b);box-shadow:0 0 8px rgba(99,195,160,.18);overflow:hidden}.study-block.anki{background:linear-gradient(180deg,#a397ff,#7166c7);box-shadow:0 0 8px rgba(145,130,240,.2)}.study-block.legacy-pause{box-shadow:inset 0 2px #d38865,0 0 8px rgba(99,195,160,.18)}.study-block b{display:block;padding:2px;color:#09120f;font-size:.43rem;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pause-block{z-index:2;min-height:3px;background:#d38865;box-shadow:0 0 0 1px rgba(13,16,21,.75)}.log-marker{position:absolute;right:2px;bottom:2px;z-index:3;display:grid;place-items:center;width:12px;height:12px;border-radius:50%;background:#343b49;color:#aeb5c4;font-size:.43rem;font-style:normal}.legend{display:flex;justify-content:flex-end;gap:11px;margin-top:8px;color:#747d90;font-size:.52rem}.legend span{display:flex;align-items:center;gap:4px}.legend i{width:8px;height:5px;border-radius:2px;background:#62b596}.legend i.anki{background:#8c80e7}.legend i.pause{background:#d38865}
+  @media(max-width:600px){.timeline-summary span{display:none}.week-plot{height:310px}.day-heads b{font-size:.48rem}.day-heads small{display:none}.day-heads>div:not(.today) b{font-size:0}.day-heads>div:not(.today) b:first-letter{font-size:.5rem}.study-block,.pause-block{left:9%;right:9%}.legend{justify-content:flex-start}}
 </style>

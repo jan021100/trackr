@@ -152,3 +152,16 @@ export function buildStudyWeekTimeline(sessions: SessionSnapshot[], weekStart: s
     markers: days.reduce((sum, day) => sum + day.markers.length, 0)
   };
 }
+
+export function buildRecentStudyTimeline(sessions: SessionSnapshot[], endDate: string, timeZone = 'Europe/Prague'): StudyWeekTimeline {
+  const startDate = shiftDateKey(endDate, -6);
+  const days = Array.from({ length: 7 }, (_, index) => buildStudyDayTimeline(sessions, shiftDateKey(startDate, index), timeZone));
+  return {
+    startDate,
+    endDate,
+    days,
+    totalSeconds: days.reduce((sum, day) => sum + day.totalSeconds, 0),
+    timedBlocks: days.reduce((sum, day) => sum + day.timed.length, 0),
+    markers: days.reduce((sum, day) => sum + day.markers.length, 0)
+  };
+}

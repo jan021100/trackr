@@ -1077,7 +1077,7 @@ Rules:
 
       <section class="panel trajectory-panel"><div class="panel-head"><div><p class="eyebrow">TRAJECTORY</p><h2>Progress over time</h2></div></div>{#if sessions.length || planProgress}<PaediatricsProgressChart {sessions} {planProgress} {reviewEvents} />{:else}<div class="empty">A chart appears after your first study-plan completion.</div>{/if}</section>
 
-      <section class="panel study-week-panel"><div class="panel-head"><div><p class="eyebrow">STUDY WEEK</p><h2>When you studied</h2><p>Session windows, active time and recorded breaks for each topic.</p></div></div><PaediatricsWeekTimeline {sessions} timeZone={localTimeZone} /></section>
+      <section class="panel study-week-panel"><div class="panel-head"><div><p class="eyebrow">LAST 7 DAYS</p><h2>When you studied</h2><p>Every session on one vertical daily timeline; breaks are marked inside the session.</p></div></div><PaediatricsWeekTimeline {sessions} timeZone={localTimeZone} /></section>
 
       <section class="panel mobile-readonly-panel"><div class="panel-head"><div><p class="eyebrow danger-text">PRIORITY</p><h2>Red zones</h2></div><span class="count">{redZones.length}</span></div>
         {#if redZones.length}<div class="red-list">{#each redZones.slice(0, 8) as item}<button on:click={() => openTopic(item.definition)}><span>{item.definition.id}<small>{activeGaps(item.progress).length} gaps · {oralSummary(item.progress).label}</small></span><b>Review</b></button>{/each}</div>{:else}<div class="empty">No weak areas or open gaps yet.</div>{/if}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStudyDayTimeline, buildStudyWeekTimeline } from '../src/lib/paediatrics/studyTimeline.ts';
+import { buildRecentStudyTimeline, buildStudyDayTimeline, buildStudyWeekTimeline } from '../src/lib/paediatrics/studyTimeline.ts';
 
 const session = (id, extra = {}) => ({
   id,
@@ -51,6 +51,10 @@ test('timeline exposes exact break intervals and weekly totals', () => {
   assert.equal(week.days.length, 7);
   assert.equal(week.totalSeconds, 1500);
   assert.equal(week.timedBlocks, 1);
+  const recent = buildRecentStudyTimeline([timed], '2026-09-23', 'Europe/Prague');
+  assert.equal(recent.startDate, '2026-09-17');
+  assert.equal(recent.endDate, '2026-09-23');
+  assert.deepEqual(recent.days.map((day) => day.date), ['2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23']);
 });
 
 test('AnkiConnect time replaces legacy Anki timer rows without hiding Trackr study', () => {
