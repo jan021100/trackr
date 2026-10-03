@@ -316,7 +316,14 @@ function makeRapidGapRepairTask(batch:GapRepairQueueEntry[],state:PaediatricsSta
 
 // Normal topic prompts are deliberately standalone: do not append the long learning brief.
 // Keep concrete learning, gap and assessment contracts here; retain all supplied gap records.
-function makeTopicTask(entry:ReviewQueueEntry,state:PaediatricsState,progress:StudyPlanProgress|null,requestedPass?:'second'):string {
+function examTimingContext(examDate = '', currentDate = ''): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || !/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return 'exam date unknown';
+  const days = Math.ceil((Date.parse(`${examDate}T12:00:00.000Z`) - Date.parse(`${currentDate}T12:00:00.000Z`)) / 86400000);
+  const label = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${examDate}T12:00:00.000Z`));
+  return days > 0 ? `exam ${label}; ${days}d left—urgent` : days === 0 ? `exam ${label}: today` : `exam ${label}: passed`;
+}
+
+function makeTopicTask(entry:ReviewQueueEntry,state:PaediatricsState,progress:StudyPlanProgress|null,requestedPass?:'second',examDate='',currentDate=''):string {
   const topic=state.topics[entry.topicId], pass=requestedPass??nextTopicPass(progress?.topics[entry.topicId]);
   const skipAcquisition=requestedPass==='second'&&!passCoverageAt(progress?.topics[entry.topicId],'first');
   const acquisition=pass==='first';
@@ -325,7 +332,7 @@ function makeTopicTask(entry:ReviewQueueEntry,state:PaediatricsState,progress:St
   const resolved=topic.gaps.filter(g=>g.resolvedAt);
   const shape={schemaVersion:1,topics:[{id:entry.topicId,...(acquisition&&topic.status==='unassessed'?{status:'learning'}:{}),...(pass==='review'?{}:{plan:{[`${pass}PassComplete`]:true}}),...(acquisition?{}:{addGaps:[]}),oralAssessment:{ratings:{coverage:0,accuracy:0,independence:0,clinicalReasoning:0,propedeutics:0},safetyCriticalError:false,evidence:'Justify pre-teaching ratings'},review:{outcome:acquisition?'studied':'prompted',pass,notes:'Actual evidence',...(acquisition?{}:{gapResults:[]})}}],session:{label:`${entry.topicId} ${stage}`,questions:0,mode:acquisition?'mixed':'oral',planPass:pass}};
   return `PAEDIATRICS LEARNING AGREEMENT
-${entry.topicId}: ${entry.title} | ${stage} | pass=${pass}. English; CU Prague 1st Faculty, second attempt; >6 months away. Full depth + propedeutics. Each a/b/c is separate (120).
+${entry.topicId}: ${entry.title} | ${stage} | pass=${pass}. English; CU Prague 1st Faculty, second attempt; ${examTimingContext(examDate,currentDate)}. Full depth incl. propedeutics. Each a/b/c is separate (120).
 SOURCES: actually read Paeds_iBook + exam-specific Pädiatrie Notes; lectures/Nelson support. No access: ask excerpts; cite file/section. Never invent citations. Zeman/2018 historical; verify safety details.
 SCOPE at full Notes/iBook depth: definition/classification, causes/mechanisms, findings, diagnosis/DDx, treatment, complications; age-specific cases/vitals, terminology/exam/examples; common/dangerous first.
 ${acquisition?`PASS 0 WORKFLOW: Start with ONLY the topic title and invite a 60–120s free cold answer. Before teaching ask bundled neutral, non-leading examiner follow-ups across full scope + propedeutics; no hints/answers.
@@ -343,8 +350,8 @@ Open gaps [id,priority,text,createdAt]:${JSON.stringify(gaps.map(g=>[g.id,g.prio
 Begin now.`;
 }
 
-export function makeStudyChatPrompt(entry:ReviewQueueEntry,state:PaediatricsState,progress:StudyPlanProgress|null,requestedPass?:'second'):string {
-  return makeTopicTask(entry,state,progress,requestedPass);
+export function makeStudyChatPrompt(entry:ReviewQueueEntry,state:PaediatricsState,progress:StudyPlanProgress|null,requestedPass?:'second',examDate='',currentDate=''):string {
+  return makeTopicTask(entry,state,progress,requestedPass,examDate,currentDate);
 }
 
 export function makeGapRepairPrompt(batch:GapRepairQueueEntry[],state:PaediatricsState,progress:StudyPlanProgress|null):string {

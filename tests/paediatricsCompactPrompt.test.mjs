@@ -6,6 +6,17 @@ import { buildReviewQueue, makeStudyChatPrompt } from '../src/lib/paediatrics/pa
 
 const now = '2026-09-14T12:00:00.000Z';
 
+test('topic prompt uses the real exam date and never invents a distant timeline', () => {
+  const state = createEmptyPaediatricsState(now), progress = createPlanProgress(state, [], now);
+  const entry = buildReviewQueue(state, progress, [], '2026-10-03').find(item => item.topicId === '1a');
+  const prompt = makeStudyChatPrompt(entry, state, progress, undefined, '2026-10-20', '2026-10-03');
+  assert.match(prompt, /exam 20 Oct 2026; 17d left—urgent/);
+  assert.doesNotMatch(prompt, />6 months away|months away/);
+  const undated = makeStudyChatPrompt(entry, state, progress);
+  assert.match(undated, /exam date unknown/);
+  assert.doesNotMatch(undated, />6 months away|months away/);
+});
+
 test('normal prompts for all 120 topics and all four stages stay compact with valid patch contracts', () => {
   const state = createEmptyPaediatricsState(now), progress = createPlanProgress(state, [], now);
   for (const [index, pass] of ['first', 'second', 'third', 'review'].entries()) {

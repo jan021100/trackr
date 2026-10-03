@@ -489,7 +489,7 @@
   async function copyNextStudyPrompt() {
     if (!nextStudy) return;
     try {
-      await navigator.clipboard.writeText(makeStudyChatPrompt(nextStudy, state, planProgress));
+      await navigator.clipboard.writeText(makeStudyChatPrompt(nextStudy, state, planProgress, undefined, examDate, today));
       await beginTopicStudy(nextStudy.topicId);
       notice = `${nextStudy.topicId} study prompt copied · timer started.`;
     }
@@ -500,7 +500,7 @@
     const entry = reviewQueue.find((item) => item.topicId === topicId);
     if (!entry) return;
     try {
-      await navigator.clipboard.writeText(makeStudyChatPrompt(entry, state, planProgress, requestedPass));
+      await navigator.clipboard.writeText(makeStudyChatPrompt(entry, state, planProgress, requestedPass, examDate, today));
       await beginTopicStudy(topicId);
       notice = `${topicId}${requestedPass ? ' Pass 1' : ''} study prompt copied · timer started.`;
     }
