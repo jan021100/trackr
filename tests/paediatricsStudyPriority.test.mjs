@@ -31,35 +31,58 @@ test('four learned topics and a failed Pass 1 do not crowd out the remaining 116
   assert.deepEqual({ state, progress, events }, originalData);
 });
 
-test('each learning round precedes later retests while preserving urgency within that round', () => {
-  const state = createEmptyPaediatricsState(NOW);
-  const progress = createPlanProgress(state, [], NOW);
-  for (const entry of Object.values(progress.topics)) entry.firstPassCompletedAt = EARLIER;
+test('after acquisition all topics compete irrespective of pass, including saved Ignore retests', () => {
+  const state = createEmptyPaediatricsState(NOW), progress = createPlanProgress(state, [], NOW);
+  for (const topic of Object.values(progress.topics)) topic.firstPassCompletedAt = EARLIER;
   progress.topics['1b'].secondPassCompletedAt = EARLIER;
-  state.topics['1b'].gaps = [{ id: 'b', text: 'Critical later gap', priority: 'critical', createdAt: EARLIER }];
-  state.topics['2a'].gaps = [{ id: 'a', text: 'Critical current gap', priority: 'critical', createdAt: EARLIER }];
-  let urgent = buildReviewQueue(state, progress, [], NOW.slice(0, 10));
-  const current = urgent.filter(entry => entry.nextPass === 'second');
-  assert.equal(current[0].topicId, '2a');
-  assert.deepEqual(buildStudyQueue(urgent, 'second').slice(0, 119), current);
-  assert.deepEqual(buildStudyQueue(urgent, 'second', true), current);
-  for (const entry of Object.values(progress.topics)) entry.secondPassCompletedAt = EARLIER;
-  urgent = buildReviewQueue(state, progress, [], NOW.slice(0, 10));
-  assert.deepEqual(buildStudyQueue(urgent, 'third'), urgent);
-  assert.ok(buildStudyQueue(urgent, 'third').every(entry => entry.nextPass === 'third'));
+  progress.topics['1c'].thirdPassCompletedAt = EARLIER;
+  const queue = buildReviewQueue(state, progress, [], NOW.slice(0, 10));
+  for (const pass of ['first', 'second', 'third', 'review']) {
+    assert.deepEqual(buildStudyQueue(queue, pass), queue);
+    assert.deepEqual(buildStudyQueue(queue, pass, true), queue);
+  }
+  assert.equal(queue.length, 120);
+  assert.deepEqual(buildStudyQueue([], 'first'), []);
 });
 
-test('ongoing review retains the full urgency queue and respects Ignore retests', () => {
-  const state = createEmptyPaediatricsState(NOW);
-  const progress = createPlanProgress(state, [], NOW);
-  for (const entry of Object.values(progress.topics)) Object.assign(entry, {
-    firstPassCompletedAt: EARLIER, secondPassCompletedAt: EARLIER, thirdPassCompletedAt: EARLIER
-  });
+const assessment = (rating, assessedAt) => ({ratings:{coverage:rating,accuracy:rating,independence:rating,clinicalReasoning:rating,propedeutics:rating},safetyCriticalError:false,evidence:'Independent recall',assessedAt});
+
+test('unscored topics precede scored safety-critical topics, oldest unscored first', () => {
+  const state = createEmptyPaediatricsState(NOW), progress = createPlanProgress(state, [], NOW);
+  for (const [id, topic] of Object.entries(progress.topics)) {
+    topic.firstPassCompletedAt = EARLIER;
+    state.topics[id].oralAssessment = assessment(4, EARLIER);
+  }
+  delete state.topics['1a'].oralAssessment;
+  delete state.topics['1b'].oralAssessment;
+  state.topics['1a'].mastery = 4; // Legacy score cannot substitute for the detailed assessment.
+  progress.topics['1a'].firstPassCompletedAt = '2026-09-01T12:00:00.000Z';
+  state.topics['1c'].oralAssessment = assessment(0, EARLIER);
   const queue = buildReviewQueue(state, progress, [], NOW.slice(0, 10));
-  assert.deepEqual(buildStudyQueue(queue, 'review'), queue);
-  assert.notEqual(buildStudyQueue(queue, 'review'), queue);
-  assert.deepEqual(buildStudyQueue(queue, 'review', true), []);
-  assert.deepEqual(buildStudyQueue([], 'first'), []);
+  assert.deepEqual(queue.slice(0, 3).map(t=>t.topicId), ['1a', '1b', '1c']);
+  assert.equal(queue[0].recallAgeDays, 15);
+});
+
+test('mastery and last study combine without pass-completion bias and use latest actual activity', () => {
+  const state = createEmptyPaediatricsState(NOW), progress = createPlanProgress(state, [], NOW);
+  for (const [id, topic] of Object.entries(progress.topics)) {
+    topic.firstPassCompletedAt = NOW;
+    state.topics[id].oralAssessment = assessment(4, NOW);
+  }
+  state.topics['1a'].oralAssessment = assessment(2, NOW); // 10/20, urgency 40.
+  progress.topics['1a'].secondPassCompletedAt = NOW;
+  state.topics['1b'].oralAssessment = assessment(3, '2026-08-20T12:00:00.000Z'); // 15/20 + 27 days, urgency 47.
+  progress.topics['1b'].firstPassCompletedAt = '2026-08-20T12:00:00.000Z';
+  let queue = buildReviewQueue(state, progress, [], NOW.slice(0, 10));
+  assert.deepEqual(queue.slice(0,2).map(t=>t.topicId), ['1b','1a']);
+  progress.topics['1a'].thirdPassCompletedAt = NOW;
+  assert.deepEqual(buildReviewQueue(state, progress, [], NOW.slice(0,10)).map(t=>t.topicId), queue.map(t=>t.topicId));
+  const events = [{id:'recent',topicId:'1b',reviewedAt:NOW,createdAt:NOW,outcome:'studied',pass:'first',source:'assistant'}];
+  queue = buildReviewQueue(state, progress, events, NOW.slice(0,10));
+  assert.equal(queue[0].topicId, '1a');
+  assert.equal(queue.find(t=>t.topicId==='1b').recallAgeDays, 0);
+  const randomized = buildStudyQueue(queue, 'second', false, 'seed');
+  assert.deepEqual(randomized.slice(0,2).map(t=>t.topicId), ['1a','1b']);
 });
 
 test('random order is stable and only shuffles topics with identical priority', () => {

@@ -269,6 +269,7 @@
   $: ankiSevenDayStart = shiftDateKey(currentAnkiStudyDay, -6);
   $: studySecondsLast7Days = dailyStudyTime.reduce((sum, day) => sum + (day.date >= calendarSevenDayStart ? day.guidedDurationSeconds : 0) + (day.date >= ankiSevenDayStart ? day.ankiDurationSeconds : 0), 0) + activeStudySecondsToday;
   $: reviewQueue = buildReviewQueue(state, planProgress, reviewEvents, today);
+  $: revisionMode = reviewQueue.some(entry => entry.revisionPriority !== undefined);
   $: screeningQueue = buildStudyQueue(reviewQueue, currentPhase?.type==='buffer' ? 'review' : activePass, ignoreRetests, randomizeEqualPriority ? randomOrderSeed : undefined);
   $: gapRepairQueue = buildGapRepairQueue(state, planProgress, reviewEvents, today, gapQueueNow);
   $: gapCooldown = gapRepairCooldownSummary(state, reviewEvents, gapQueueNow);
@@ -949,8 +950,8 @@ Rules:
             <div class="next-title"><span class={`queue-kind ${nextStudy.kind}`}>{nextStudy.nextPass==='review'?'Review':PASS_DETAILS[nextStudy.nextPass].label}</span><strong>{nextStudy.topicId} · {nextStudy.title}</strong></div>
             <p>{nextStudy.reasons.slice(0, 4).join(' · ')}</p>
             <div class="actions"><button class="primary" on:click={copyNextStudyPrompt}>Copy study prompt</button><button on:click={openNextStudy}>Open topic</button></div>
-            {#if currentPhase?.type!=='buffer' && dueRetests.length}<p>Due retests stay tracked. Use Gap repair or Rapid gap repair for short targeted practice alongside {PASS_DETAILS[activePass].label}.</p>{/if}
-            <div class="queue-options"><span>QUEUE OPTIONS</span><label class="queue-toggle"><span><b>Ignore retests</b><small>Unfinished {PASS_DETAILS[activePass].label} only</small></span><input type="checkbox" checked={ignoreRetests} on:change={(event) => setIgnoreRetests(event.currentTarget.checked)} /><i aria-hidden="true"></i></label><label class="queue-toggle"><span><b>Random order</b><small>Within equal priority only</small></span><input type="checkbox" checked={randomizeEqualPriority} on:change={(event) => setRandomOrder(event.currentTarget.checked)} /><i aria-hidden="true"></i></label></div>
+            {#if revisionMode}<p>Unscored topics first. Then priority = (20 − oral score) × 4 + days since last study, regardless of completed passes.</p>{:else if currentPhase?.type!=='buffer' && dueRetests.length}<p>Due retests stay tracked. Use Gap repair or Rapid gap repair for short targeted practice alongside {PASS_DETAILS[activePass].label}.</p>{/if}
+            <div class="queue-options"><span>QUEUE OPTIONS</span>{#if !revisionMode}<label class="queue-toggle"><span><b>Ignore retests</b><small>Unfinished {PASS_DETAILS[activePass].label} only</small></span><input type="checkbox" checked={ignoreRetests} on:change={(event) => setIgnoreRetests(event.currentTarget.checked)} /><i aria-hidden="true"></i></label>{/if}<label class="queue-toggle"><span><b>Random order</b><small>Within equal priority only</small></span><input type="checkbox" checked={randomizeEqualPriority} on:change={(event) => setRandomOrder(event.currentTarget.checked)} /><i aria-hidden="true"></i></label></div>
           </div>
           <div class="review-overview">
             <article><span>{activePassCoverageLabel}</span><strong>{planProgress ? passCount(planProgress, activePass) : 0}<small>/120</small></strong></article>
@@ -959,13 +960,13 @@ Rules:
             <article><span>Simulations</span><strong>{simulations.length}</strong></article>
           </div>
           <div class="queue-preview">
-            <div class="queue-head"><strong>Up next</strong><small>{currentPhase?.type==='buffer' ? 'Weakest and due topics first' : `${PASS_DETAILS[activePass].label} coverage first · later retests follow`}</small></div>
+            <div class="queue-head"><strong>Up next</strong><small>{revisionMode ? 'Unscored first · mastery + time since study' : currentPhase?.type==='buffer' ? 'Weakest and due topics first' : `${PASS_DETAILS[activePass].label} coverage first · later retests follow`}</small></div>
             {#each screeningQueue.slice(0, 5) as entry, index}
               <button on:click={() => { const topic = PAEDIATRICS_SYLLABUS.find((item) => item.id === entry.topicId); if (topic) openTopic(topic); }}><b>{index + 1}</b><span><strong>{entry.topicId}</strong><small>{entry.title}</small></span><em class={entry.kind}>{entry.kind}</em></button>
             {/each}
           </div>
         {:else if studyMode === 'screen'}
-          <div class="review-next"><div class="screen-heading"><p class="eyebrow">NEXT STUDY STEP</p></div><div class="empty compact-empty">All {PASS_DETAILS[activePass].label} topics are complete. Turn off “Ignore retests” to continue with targeted later reviews.</div><div class="queue-options"><span>QUEUE OPTIONS</span><label class="queue-toggle"><span><b>Ignore retests</b><small>Unfinished {PASS_DETAILS[activePass].label} only</small></span><input type="checkbox" checked={ignoreRetests} on:change={(event) => setIgnoreRetests(event.currentTarget.checked)} /><i aria-hidden="true"></i></label><label class="queue-toggle"><span><b>Random order</b><small>Within equal priority only</small></span><input type="checkbox" checked={randomizeEqualPriority} on:change={(event) => setRandomOrder(event.currentTarget.checked)} /><i aria-hidden="true"></i></label></div></div>
+          <div class="review-next"><div class="screen-heading"><p class="eyebrow">NEXT STUDY STEP</p></div><div class="empty compact-empty">All {PASS_DETAILS[activePass].label} topics are complete. Turn off “Ignore retests” to continue with targeted later reviews.</div><div class="queue-options"><span>QUEUE OPTIONS</span>{#if !revisionMode}<label class="queue-toggle"><span><b>Ignore retests</b><small>Unfinished {PASS_DETAILS[activePass].label} only</small></span><input type="checkbox" checked={ignoreRetests} on:change={(event) => setIgnoreRetests(event.currentTarget.checked)} /><i aria-hidden="true"></i></label>{/if}<label class="queue-toggle"><span><b>Random order</b><small>Within equal priority only</small></span><input type="checkbox" checked={randomizeEqualPriority} on:change={(event) => setRandomOrder(event.currentTarget.checked)} /><i aria-hidden="true"></i></label></div></div>
         {:else if studyMode === 'gap-repair'}
           <div class="review-next gap-repair-next">
             <div class="gap-repair-heading"><div><p class="eyebrow">NEXT GAP-REPAIR BATCH</p><h3>{gapRepairBatch.length} topics · {gapRepairBatchGapCount} gaps</h3></div><label>Batch size<select bind:value={gapBatchSize}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></label></div>

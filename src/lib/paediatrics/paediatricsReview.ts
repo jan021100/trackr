@@ -52,6 +52,8 @@ export type ReviewQueueEntry = {
   nextPass: TopicPass | 'review';
   mastery: number;
   oralPriority?: number;
+  revisionPriority?: number;
+  needsOralAssessment?: boolean;
 };
 
 export type GapRepairQueueEntry = {
@@ -111,7 +113,9 @@ export const latestReviews = (events:PaediatricsReviewEvent[]) => {
   return result;
 };
 
-const queuePriorityKey = (entry:ReviewQueueEntry) => [
+const queuePriorityKey = (entry:ReviewQueueEntry) => entry.revisionPriority !== undefined
+  ? `${Number(entry.needsOralAssessment)}|${entry.revisionPriority}`
+  : [
   Number(entry.kind==='critical'),
   entry.oralPriority??entry.mastery*5,
   Number(entry.thirdPassComplete),
@@ -136,6 +140,8 @@ function randomizeEqualPriority(entries:ReviewQueueEntry[],seed?:string):ReviewQ
 
 /** Keep whole-topic learning in the current round; later urgent reviews remain available. */
 export function buildStudyQueue(queue:ReviewQueueEntry[],pass:TopicPass|'review',ignoreRetests=false,randomSeed?:string):ReviewQueueEntry[] {
+  // After acquisition, every topic competes by assessment and recency, irrespective of round.
+  if(queue.some(entry=>entry.revisionPriority!==undefined)) return randomizeEqualPriority(queue,randomSeed);
   if(pass==='review') return ignoreRetests?[]:randomizeEqualPriority(queue,randomSeed);
   const current=queue.filter(entry=>entry.nextPass===pass);
   const later=ignoreRetests?[]:queue.filter(entry=>entry.nextPass!==pass && (entry.kind==='critical'||entry.kind==='retest'));
@@ -144,12 +150,19 @@ export function buildStudyQueue(queue:ReviewQueueEntry[],pass:TopicPass|'review'
 
 export function buildReviewQueue(state:PaediatricsState,progress:StudyPlanProgress|null,events:PaediatricsReviewEvent[],today=localDate()):ReviewQueueEntry[] {
   const latest=latestReviews(events);
+  const acquisitionCovered=PAEDIATRICS_SYLLABUS.every(topic=>passCoverageAt(progress?.topics[topic.id],'first'));
+  const lastStudied:Record<string,string>={};
+  for(const event of events){
+    if(validTime(event.reviewedAt)!==undefined && (!lastStudied[event.topicId] || event.reviewedAt>lastStudied[event.topicId])) lastStudied[event.topicId]=event.reviewedAt;
+  }
   return PAEDIATRICS_SYLLABUS.map((definition) => {
     const topic=state.topics[definition.id]; const review=latest[definition.id]; const plan=progress?.topics[definition.id];
     const open=topic.gaps.filter((gap)=>!gap.resolvedAt); const critical=open.filter((gap)=>gap.priority==='critical').length;
     const important=open.filter((gap)=>gap.priority==='important').length; const secondPassComplete=!!plan?.secondPassCompletedAt; const thirdPassComplete=!!plan?.thirdPassCompletedAt; const nextPass=nextTopicPass(plan);
     const dueDate=review?.outcome==='failed'?addDays(review.reviewedAt.slice(0,10),1):review?.outcome==='prompted'?addDays(review.reviewedAt.slice(0,10),2):nextPass==='second'&&plan?.firstPassCompletedAt?addDays(plan.firstPassCompletedAt.slice(0,10),2):nextPass==='third'&&plan?.secondPassCompletedAt?addDays(plan.secondPassCompletedAt.slice(0,10),2):undefined;
-    const lastRecallAt=review?.reviewedAt??plan?.thirdPassCompletedAt??plan?.secondPassCompletedAt;
+    const lastRecallAt=acquisitionCovered
+      ? [lastStudied[definition.id],topic.lastReviewedAt??undefined,plan?.firstPassCompletedAt,plan?.secondPassCompletedAt,plan?.thirdPassCompletedAt,topic.oralAssessment?.assessedAt].filter((date):date is string=>validTime(date)!==undefined).sort().at(-1)
+      : review?.reviewedAt??plan?.thirdPassCompletedAt??plan?.secondPassCompletedAt;
     const recallAgeDays=lastRecallAt?daysBetween(lastRecallAt.slice(0,10),today):undefined;
     const due=!!dueDate&&dueDate<=today; const reasons:string[]=[]; let score=0; let kind:ReviewQueueEntry['kind']='maintenance';
     if(plan?.redZonePinned){score+=120;reasons.push('Red zone');}
@@ -172,8 +185,19 @@ export function buildReviewQueue(state:PaediatricsState,progress:StudyPlanProgre
     if(topic.oralAssessment){reasons.push(oralSummary(topic).label);score+=20-oralPriority(topic);}
     if(plan?.redZonePinned||critical||review?.outcome==='failed'||(topic.oralAssessment&&oralPriority(topic)<8))kind='critical';
     else if(due)kind='retest'; else if(!thirdPassComplete)kind='screen';
-    return {topicId:definition.id,title:definition.title,kind,score,reasons,latest:review,dueDate,lastRecallAt,recallAgeDays,secondPassComplete,thirdPassComplete,nextPass,mastery:topic.mastery,oralPriority:oralPriority(topic)};
+    const needsOralAssessment=!topic.oralAssessment;
+    // One missing mastery point equals four days since the last recorded study.
+    // Missing dates receive no invented age; legacy /4 is never a measured /20.
+    const revisionPriority=acquisitionCovered?(needsOralAssessment?0:(20-oralPriority(topic))*4)+(recallAgeDays??0):undefined;
+    if(acquisitionCovered){
+      reasons.splice(0,reasons.length,needsOralAssessment?'Oral assessment missing':oralSummary(topic).label,lastRecallAt?`Last studied ${recallAgeDays} days ago`:'Last study date unknown');
+      if(critical)reasons.push(`${critical} critical gaps`);
+    }
+    return {topicId:definition.id,title:definition.title,kind,score:revisionPriority??score,reasons,latest:review,dueDate,lastRecallAt,recallAgeDays,secondPassComplete,thirdPassComplete,nextPass,mastery:topic.mastery,oralPriority:oralPriority(topic),...(acquisitionCovered?{revisionPriority,needsOralAssessment}:{})};
   }).sort((a,b)=>{
+    if(acquisitionCovered) return Number(b.needsOralAssessment)-Number(a.needsOralAssessment)
+      || b.score-a.score
+      || a.topicId.localeCompare(b.topicId,'en',{numeric:true});
     // A genuinely critical/failed safety signal can interrupt the normal
     // order. Otherwise estimated knowledge is primary: lower mastery first,
     // then unfinished Second Pass before a later retest at the same mastery.
