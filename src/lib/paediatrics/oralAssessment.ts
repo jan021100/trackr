@@ -13,6 +13,8 @@ export type OralAssessment = {
   safetyCriticalError: boolean;
   evidence: string;
   assessedAt?: string;
+  scope?: 'rapid';
+  scoreCeiling?: number;
 };
 export const ORAL_BANDS = [
   { key: 'unassessed', label: 'Not assessed', range: '—', color: '#343944' },
@@ -25,7 +27,10 @@ export const ORAL_BANDS = [
 
 export function validateOralAssessment(value: unknown): OralAssessment {
   const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-  if (!object(value) || Object.keys(value).some(k => !['ratings', 'safetyCriticalError', 'evidence', 'assessedAt'].includes(k)) || !object(value.ratings)) throw new Error('oralAssessment must contain ratings, safetyCriticalError and evidence.');
+  if (!object(value) || Object.keys(value).some(k => !['ratings', 'safetyCriticalError', 'evidence', 'assessedAt', 'scope', 'scoreCeiling'].includes(k)) || !object(value.ratings)) throw new Error('oralAssessment must contain ratings, safetyCriticalError and evidence.');
+  if (value.scope !== undefined && value.scope !== 'rapid') throw new Error('Unknown assessment scope.');
+  if (value.scope === 'rapid' && (!Number.isInteger(value.scoreCeiling) || Number(value.scoreCeiling) < 0 || Number(value.scoreCeiling) > 15)) throw new Error('Rapid assessment requires a scoreCeiling from 0 to 15.');
+  if (value.scope !== 'rapid' && value.scoreCeiling !== undefined) throw new Error('scoreCeiling is only for rapid assessments.');
   const ratings = value.ratings;
   if (Object.keys(ratings).length !== ORAL_DOMAINS.length || ORAL_DOMAINS.some(({ key }) => !Number.isInteger(ratings[key]) || Number(ratings[key]) < 0 || Number(ratings[key]) > 4)) throw new Error('Each oral assessment domain must be an integer from 0 to 4.');
   if (typeof value.safetyCriticalError !== 'boolean' || typeof value.evidence !== 'string' || !value.evidence.trim() || value.evidence.length > 1500) throw new Error('Oral assessment requires a safety flag and concise evidence (at most 1500 characters).');
@@ -37,6 +42,7 @@ export function scoreOralAssessment(assessment: OralAssessment) {
   const values = ORAL_DOMAINS.map(({ key }) => assessment.ratings[key]);
   const raw = values.reduce<number>((sum, n) => sum + n, 0);
   const caps: Array<{ max: number; reason: string }> = [];
+  if (assessment.scope === 'rapid') caps.push({max: Math.min(15, assessment.scoreCeiling ?? 15), reason: 'Rapid sample: limited evidence'});
   if (assessment.safetyCriticalError) caps.push({ max: 7, reason: 'Safety-critical error' });
   if (values.some(n => n === 0)) caps.push({ max: 7, reason: 'An essential area was absent' });
   if (assessment.ratings.independence <= 1) caps.push({ max: 7, reason: 'Answer depended on substantial help' });
@@ -56,7 +62,7 @@ export function oralLegacyMastery(assessment: OralAssessment): Mastery {
 export function oralSummary(topic: Pick<TopicProgress, 'mastery' | 'oralAssessment'>) {
   if (topic.oralAssessment) {
     const result = scoreOralAssessment(topic.oralAssessment);
-    return { ...result, label: `${result.score}/20 · ${result.band.label}`, short: `${result.score}/20`, detailed: true };
+    return { ...result, label: `${result.score}/20 · ${result.band.label}${topic.oralAssessment.scope === 'rapid' ? ' · Rapid sample' : ''}`, short: `${result.score}/20`, detailed: true };
   }
   const band = ORAL_BANDS[topic.mastery === 0 ? 0 : topic.mastery === 1 ? 1 : topic.mastery === 2 ? 2 : topic.mastery === 3 ? 3 : 5];
   return { score: undefined, raw: undefined, band, limits: [] as string[], label: topic.mastery ? `Legacy ${topic.mastery}/4 · detailed assessment missing` : 'Not assessed', short: topic.mastery ? `${topic.mastery}/4` : '—', detailed: false };

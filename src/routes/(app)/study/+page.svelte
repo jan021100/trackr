@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PaediatricsRapidFire from '$lib/components/PaediatricsRapidFire.svelte';
   import { coverageFromReviews } from '$lib/paediatrics/reviewCoverage';
   import { onDestroy, onMount } from 'svelte';
   import { ORAL_BANDS, ORAL_DOMAINS, oralSummary, oralPriority, scoreOralAssessment } from '$lib/paediatrics/oralAssessment';
@@ -77,7 +78,7 @@
   let importInput: HTMLInputElement;
   let timerNow = Date.now();
   let gapQueueNow = new Date().toISOString();
-  let studyMode: 'screen' | 'gap-repair' | 'rapid-gap-repair' | 'anki-gap' = 'screen';
+  let studyMode: 'screen' | 'gap-repair' | 'rapid-gap-repair' | 'anki-gap' | 'rapid-fire' = 'screen';
   let gapBatchSize = 3;
   let rapidGapTarget = 8;
   let ignoreRetests = false;
@@ -131,7 +132,7 @@
 
   onMount(() => {
     const savedMode = window.localStorage.getItem('trackr-paediatrics-study-mode');
-    if (savedMode === 'screen' || savedMode === 'gap-repair' || savedMode === 'rapid-gap-repair' || savedMode === 'anki-gap') studyMode = savedMode;
+    if (savedMode === 'rapid-fire' || savedMode === 'screen' || savedMode === 'gap-repair' || savedMode === 'rapid-gap-repair' || savedMode === 'anki-gap') studyMode = savedMode;
     ignoreRetests = window.localStorage.getItem('trackr-paediatrics-ignore-retests') === 'true';
     randomizeEqualPriority = window.localStorage.getItem('trackr-paediatrics-random-order') === 'true';
     randomOrderSeed = window.localStorage.getItem('trackr-paediatrics-random-order-seed') ?? '';
@@ -152,7 +153,7 @@
   const activeGaps = (topic: TopicProgress) => topic.gaps.filter((gap) => !gap.resolvedAt);
   const ankiReviews = (topic: TopicProgress) => topic.ankiReviews ?? [];
 
-  function selectStudyMode(mode: 'screen' | 'gap-repair' | 'rapid-gap-repair' | 'anki-gap') {
+  function selectStudyMode(mode: 'screen' | 'gap-repair' | 'rapid-gap-repair' | 'anki-gap' | 'rapid-fire') {
     studyMode = mode;
     if (typeof window !== 'undefined') window.localStorage.setItem('trackr-paediatrics-study-mode', mode);
   }
@@ -940,6 +941,7 @@ Rules:
     <section class="review-control">
         <div class="study-mode-tabs" role="tablist" aria-label="Study mode">
           <button class:active={studyMode === 'screen'} on:click={() => selectStudyMode('screen')}>{currentPhase?.type==='buffer'?'Ongoing review':`${PASS_DETAILS[activePass].label} & retest`}</button>
+          <button class:active={studyMode === 'rapid-fire'} on:click={() => selectStudyMode('rapid-fire')}>Rapid Fire · 5 min</button>
           <button class:active={studyMode === 'gap-repair'} on:click={() => selectStudyMode('gap-repair')}>Gap repair <span>{openGaps}</span></button>
           <button class:active={studyMode === 'rapid-gap-repair'} on:click={() => selectStudyMode('rapid-gap-repair')}>Rapid gap repair <span>{openGaps}</span></button>
           <button class:active={studyMode === 'anki-gap'} on:click={() => selectStudyMode('anki-gap')}>Anki gaps <span>{openGaps}</span></button>
@@ -967,6 +969,8 @@ Rules:
           </div>
         {:else if studyMode === 'screen'}
           <div class="review-next"><div class="screen-heading"><p class="eyebrow">NEXT STUDY STEP</p></div><div class="empty compact-empty">All {PASS_DETAILS[activePass].label} topics are complete. Turn off “Ignore retests” to continue with targeted later reviews.</div><div class="queue-options"><span>QUEUE OPTIONS</span>{#if !revisionMode}<label class="queue-toggle"><span><b>Ignore retests</b><small>Unfinished {PASS_DETAILS[activePass].label} only</small></span><input type="checkbox" checked={ignoreRetests} on:change={(event) => setIgnoreRetests(event.currentTarget.checked)} /><i aria-hidden="true"></i></label>{/if}<label class="queue-toggle"><span><b>Random order</b><small>Within equal priority only</small></span><input type="checkbox" checked={randomizeEqualPriority} on:change={(event) => setRandomOrder(event.currentTarget.checked)} /><i aria-hidden="true"></i></label></div></div>
+        {:else if studyMode === 'rapid-fire'}
+          <PaediatricsRapidFire queue={screeningQueue} {state} events={reviewEvents} {today} {examDate} />
         {:else if studyMode === 'gap-repair'}
           <div class="review-next gap-repair-next">
             <div class="gap-repair-heading"><div><p class="eyebrow">NEXT GAP-REPAIR BATCH</p><h3>{gapRepairBatch.length} topics · {gapRepairBatchGapCount} gaps</h3></div><label>Batch size<select bind:value={gapBatchSize}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></label></div>

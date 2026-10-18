@@ -192,6 +192,7 @@ export function validatePatch(input: unknown): PaediatricsPatch {
     }
     if (raw.oralAssessment !== undefined) {
       const assessment = validateOralAssessment(raw.oralAssessment);
+      if (assessment.scope === 'rapid' && (raw.plan !== undefined || (isObject(raw.review) && raw.review.pass !== 'review') || (isObject(input.session) && (input.session.planPass !== 'review' || input.session.mode !== 'rapid-recall')))) throw new Error('Rapid samples cannot complete a regular pass; use review/rapid-recall.');
       if (raw.mastery !== undefined && raw.mastery !== oralLegacyMastery(assessment)) throw new Error(`${raw.id}: mastery conflicts with oralAssessment; omit mastery.`);
       if (isObject(raw.review)) {
         const outcome = raw.review.outcome;
@@ -276,7 +277,11 @@ export function mergePatch(current: PaediatricsState, patch: PaediatricsPatch, n
       if (!change.oralAssessment) delete topic.oralAssessment;
     }
     if (change.oralAssessment !== undefined) {
+      const previousAssessment = topic.oralAssessment;
+      const previousScore = topic.oralAssessment ? scoreOralAssessment(topic.oralAssessment).score : undefined;
       topic.oralAssessment = { ...structuredClone(change.oralAssessment), assessedAt: change.oralAssessment.assessedAt ?? change.lastReviewedAt ?? now };
+      if (topic.oralAssessment.scope === 'rapid') topic.oralAssessment.scoreCeiling = Math.min(15, topic.oralAssessment.scoreCeiling ?? 15, previousScore ?? 15);
+      if (previousAssessment && (previousScore ?? 0) > 15 && topic.oralAssessment.scope === 'rapid' && !topic.oralAssessment.safetyCriticalError && Object.values(topic.oralAssessment.ratings).every(rating => rating >= 3)) topic.oralAssessment = previousAssessment;
       topic.mastery = oralLegacyMastery(topic.oralAssessment);
       topic.status = scoreOralAssessment(topic.oralAssessment).score >= 19 ? 'solid' : 'review';
     }
