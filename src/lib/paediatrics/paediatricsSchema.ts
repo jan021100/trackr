@@ -24,6 +24,7 @@ type StudyTimerBase = {
 export type TopicStudyTimer = StudyTimerBase & {
   kind?: 'topic';
   topicId: string;
+  rapidFireTopicIds?: string[];
 };
 
 export type AnkiStudyTimer = StudyTimerBase & {
@@ -319,6 +320,7 @@ export function normalizeState(input: unknown): PaediatricsState {
   if (isObject(input.activeStudyTimer)) {
     const timer = input.activeStudyTimer;
     const validBase = isoDate(timer.startedAt) && Number.isInteger(timer.accumulatedSeconds) && Number(timer.accumulatedSeconds) >= 0 && ['running', 'paused'].includes(String(timer.status)) && (timer.runningSince === undefined || isoDate(timer.runningSince)) && (timer.status !== 'running' || timer.runningSince !== undefined) && validPauseIntervals(timer.pauseIntervals);
+    if (timer.rapidFireTopicIds !== undefined && (!Array.isArray(timer.rapidFireTopicIds) || timer.rapidFireTopicIds.length < 1 || timer.rapidFireTopicIds.length > 4 || new Set(timer.rapidFireTopicIds).size !== timer.rapidFireTopicIds.length || timer.rapidFireTopicIds[0] !== timer.topicId || timer.rapidFireTopicIds.some(id=>typeof id !== 'string' || !PAEDIATRICS_TOPIC_IDS.has(id)))) throw new Error('Invalid Rapid Fire timer topics.');
     const validTopic = (timer.kind === undefined || timer.kind === 'topic') && typeof timer.topicId === 'string' && PAEDIATRICS_TOPIC_IDS.has(timer.topicId);
     const validAnki = timer.kind === 'anki-gap' && typeof timer.batchId === 'string' && Array.isArray(timer.topicIds) && timer.topicIds.every((id) => typeof id === 'string' && PAEDIATRICS_TOPIC_IDS.has(id)) && Array.isArray(timer.gapIds) && timer.gapIds.every((id) => typeof id === 'string');
     if (!validBase || (!validTopic && !validAnki)) throw new Error('Backup contains an invalid active study timer.');

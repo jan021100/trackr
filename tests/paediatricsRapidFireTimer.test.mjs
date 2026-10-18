@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {startRapidFireTimer,rapidFireTimedSessions} from '../src/lib/paediatrics/rapidFireTimer.ts';
+import {createEmptyPaediatricsState,normalizeState} from '../src/lib/paediatrics/paediatricsSchema.ts';
+import {pauseStudyTimer,resumeStudyTimer,finishStudyTimer} from '../src/lib/paediatrics/studyTimer.ts';
+const now='2026-10-18T12:00:00.000Z';
+const ids=['1a','1b','1c','2a'];
+test('rapid timer survives reload and pause/resume with the copied block frozen',()=>{
+ const state=createEmptyPaediatricsState(now);
+ state.activeStudyTimer=startRapidFireTimer(ids,new Date(now));
+ state.activeStudyTimer=pauseStudyTimer(state.activeStudyTimer,new Date('2026-10-18T12:04:00.000Z'));
+ const restored=normalizeState(JSON.parse(JSON.stringify(state)));
+ assert.deepEqual(restored.activeStudyTimer.rapidFireTopicIds,ids);
+ restored.activeStudyTimer=resumeStudyTimer(restored.activeStudyTimer,new Date('2026-10-18T12:09:00.000Z'));
+ const result=finishStudyTimer(restored,new Date('2026-10-18T12:25:03.000Z'));
+ assert.equal(result.durationSeconds,1203);
+ const base={id:'base',date:result.endedAt,createdAt:result.endedAt,label:'base',questions:0,averageMastery:2,assessedTopics:120,durationSeconds:result.durationSeconds,studyStartedAt:now,studyEndedAt:result.endedAt,studySource:'trackr'};
+ const sessions=rapidFireTimedSessions(result.timer,base);
+ assert.deepEqual(sessions.map(s=>s.durationSeconds),[301,301,301,300]);
+ assert.equal(sessions.reduce((n,s)=>n+s.durationSeconds,0),1203);
+ assert.deepEqual(sessions.map(s=>s.topicIds[0]),ids);
+ assert.equal(sessions[0].pauseIntervals.length,1);
+ assert.ok(sessions.every(s=>s.planPass==='none'&&s.questions===0));
+ for(let i=1;i<sessions.length;i++)assert.equal(sessions[i-1].studyEndedAt,sessions[i].studyStartedAt);
+ assert.deepEqual(rapidFireTimedSessions(result.timer,base).map(s=>s.id),sessions.map(s=>s.id),'retry uses identical IDs');
+ assert.equal(result.state.activeStudyTimer,undefined);
+});
+test('actual smaller batches split by their own size and invalid batches cannot start',()=>{
+ assert.throws(()=>startRapidFireTimer([]));
+ assert.throws(()=>startRapidFireTimer(['1a','1a']));
+ assert.throws(()=>startRapidFireTimer(['wrong']));
+ const timer=startRapidFireTimer(ids.slice(0,2),new Date(now));
+ const sessions=rapidFireTimedSessions(timer,{id:'base',date:now,createdAt:now,label:'base',questions:0,averageMastery:0,assessedTopics:0,durationSeconds:11,studyStartedAt:now,studyEndedAt:'2026-10-18T12:00:11.000Z'});
+ assert.deepEqual(sessions.map(s=>s.durationSeconds),[6,5]);
+ const bad=createEmptyPaediatricsState(now);bad.activeStudyTimer={...timer,rapidFireTopicIds:['1a','wrong']};
+ assert.throws(()=>normalizeState(bad));
+});

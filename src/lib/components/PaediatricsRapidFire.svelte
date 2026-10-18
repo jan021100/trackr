@@ -8,6 +8,8 @@
   export let events: PaediatricsReviewEvent[];
   export let today: string;
   export let examDate: string;
+  export let oncopy: (ids: string[]) => Promise<boolean>;
+  let copying = false;
   let message = '';
   let pastedPrompt = '';
   let remaining = 300;
@@ -22,9 +24,16 @@
     interval=setInterval(()=>{remaining=Math.max(0,Math.ceil((deadline-Date.now())/1000));if(!remaining)stop();},250);
   }
   async function copy() {
+    if(copying)return;
+    copying=true;
+    const ids=batch.map(entry=>entry.topicId);
     pastedPrompt=makeRapidFirePrompt(batch,state,examDate);
-    try {await navigator.clipboard.writeText(pastedPrompt);message='Copied. Paste into your study chat; import the batch patch below afterwards.';}
-    catch {message='Clipboard unavailable. Copy the prompt from the text field below.';}
+    try {
+      await navigator.clipboard.writeText(pastedPrompt);
+      const started=await oncopy(ids);
+      message=started?'Copied · study timer running for this block. Finish saves active time equally across these topics.':'Prompt copied; timer was not started. Check the active timer before studying.';
+    } catch {message='Copy or timer start failed. Check the timer; the prompt is available below for manual copying.';}
+    finally {copying=false;}
   }
   onDestroy(stop);
 </script>
@@ -35,8 +44,8 @@
     <div class="topic"><div><b>{entry.topicId} · {entry.title}</b><small>{entry.reasons.slice(0,2).join(' · ')}</small></div><button on:click={()=>start(entry.topicId)}>5 min{timedTopic===entry.topicId?' ↻':''}</button></div>
   {/each}
   {#if remaining===0}<p class="expired">Time: close {timedTopic}, record the sampled result, then move on.</p>{/if}
-  {#if batch.length}<button class="copy" on:click={copy}>Copy 4-topic rapid prompt</button>{:else}<p>Today's rapid sweep is complete. Use Gap repair for targeted follow-up.</p>{/if}
-  <p>Start the countdown for each topic. This countdown is a pacing aid, not a study-time log. After importing the patch, the next four topics appear automatically. Untested topics stay in the queue.</p>
+  {#if batch.length}<button class="copy" disabled={copying} on:click={copy}>Copy 4-topic rapid prompt</button>{:else}<p>Today's rapid sweep is complete. Use Gap repair for targeted follow-up.</p>{/if}
+  <p>Start the countdown for each topic. The countdown paces each topic; the normal study timer tracks the block, including pause/resume. Finish splits active time equally across the copied topics; Cancel discards it. After importing the patch, the next four topics appear automatically. Untested topics stay in the queue.</p>
   {#if message}<p role="status">{message}</p>{/if}
   {#if pastedPrompt}<details><summary>Prompt / manual copy</summary><textarea readonly value={pastedPrompt} aria-label="Rapid Fire prompt"></textarea></details>{/if}
 </section>

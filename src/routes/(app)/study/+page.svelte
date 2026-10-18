@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { startRapidFireTimer, rapidFireTimedSessions } from '$lib/paediatrics/rapidFireTimer';
   import PaediatricsRapidFire from '$lib/components/PaediatricsRapidFire.svelte';
   import { coverageFromReviews } from '$lib/paediatrics/reviewCoverage';
   import { onDestroy, onMount } from 'svelte';
@@ -406,6 +407,17 @@
     const snapshot = isAnkiStudyTimer(timer)
       ? ankiTimedSnapshot(result.state, timer.startedAt, result.endedAt, result.durationSeconds, timer.topicIds, timer.gapIds, timer.pauseIntervals)
       : timedSnapshot(result.state, timer.topicId, timer.startedAt, result.endedAt, result.durationSeconds, timer.pauseIntervals);
+    if (isTopicStudyTimer(timer) && timer.rapidFireTopicIds?.length && uid) {
+      saving=true; error='';
+      try {
+        await saveSessions(uid, rapidFireTimedSessions(timer, snapshot));
+        await savePaediatricsState(uid, result.state);
+        state=result.state;
+        notice=`Rapid Fire finished · ${formatStudyDuration(result.durationSeconds)} split equally across ${timer.rapidFireTopicIds.length} topics.`;
+      } catch(reason) {fail(reason);}
+      finally {saving=false;}
+      return;
+    }
     await persist(result.state, snapshot);
     notice = `${isAnkiStudyTimer(timer) ? 'Anki gap study' : timer.topicId} finished · ${formatStudyDuration(result.durationSeconds)} recorded.`;
     if (syncAnki && isAnkiStudyTimer(timer)) await syncAnkiProgress();
@@ -425,9 +437,27 @@
     finally { saving = false; }
   }
 
+  async function beginRapidFireStudy(ids: string[]): Promise<boolean> {
+    if (!uid || saving) return false;
+    const active=state.activeStudyTimer;
+    if (isTopicStudyTimer(active) && JSON.stringify(active.rapidFireTopicIds)===JSON.stringify(ids)) {
+      if(active.status==='paused') await resumeTopicStudy();
+      return state.activeStudyTimer?.status==='running';
+    }
+    if(active) {
+      if(!confirm('Finish the active timer and start this Rapid Fire block?')) return false;
+      await completeActiveStudyTimer();
+      if(state.activeStudyTimer) return false;
+    }
+    const next=structuredClone(state), now=new Date();
+    next.activeStudyTimer=startRapidFireTimer(ids,now);next.updatedAt=now.toISOString();
+    await persist(next,undefined,true);
+    return isTopicStudyTimer(state.activeStudyTimer) && JSON.stringify(state.activeStudyTimer.rapidFireTopicIds)===JSON.stringify(ids);
+  }
+
   async function beginTopicStudy(topicId: string) {
     if (!uid || saving) return;
-    if (isTopicStudyTimer(state.activeStudyTimer) && state.activeStudyTimer.topicId === topicId) {
+    if (isTopicStudyTimer(state.activeStudyTimer) && state.activeStudyTimer.topicId === topicId && !state.activeStudyTimer.rapidFireTopicIds) {
       if (state.activeStudyTimer.status === 'paused') await resumeTopicStudy();
       return;
     }
@@ -970,7 +1000,7 @@ Rules:
         {:else if studyMode === 'screen'}
           <div class="review-next"><div class="screen-heading"><p class="eyebrow">NEXT STUDY STEP</p></div><div class="empty compact-empty">All {PASS_DETAILS[activePass].label} topics are complete. Turn off “Ignore retests” to continue with targeted later reviews.</div><div class="queue-options"><span>QUEUE OPTIONS</span>{#if !revisionMode}<label class="queue-toggle"><span><b>Ignore retests</b><small>Unfinished {PASS_DETAILS[activePass].label} only</small></span><input type="checkbox" checked={ignoreRetests} on:change={(event) => setIgnoreRetests(event.currentTarget.checked)} /><i aria-hidden="true"></i></label>{/if}<label class="queue-toggle"><span><b>Random order</b><small>Within equal priority only</small></span><input type="checkbox" checked={randomizeEqualPriority} on:change={(event) => setRandomOrder(event.currentTarget.checked)} /><i aria-hidden="true"></i></label></div></div>
         {:else if studyMode === 'rapid-fire'}
-          <PaediatricsRapidFire queue={screeningQueue} {state} events={reviewEvents} {today} {examDate} />
+          <PaediatricsRapidFire oncopy={beginRapidFireStudy} queue={screeningQueue} {state} events={reviewEvents} {today} {examDate} />
         {:else if studyMode === 'gap-repair'}
           <div class="review-next gap-repair-next">
             <div class="gap-repair-heading"><div><p class="eyebrow">NEXT GAP-REPAIR BATCH</p><h3>{gapRepairBatch.length} topics · {gapRepairBatchGapCount} gaps</h3></div><label>Batch size<select bind:value={gapBatchSize}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></label></div>
@@ -1104,7 +1134,7 @@ Rules:
 
 {#if activeTimer}
   <aside class="floating-timer" class:paused={activeTimer.status === 'paused'} aria-live="polite">
-    {#if activeTimerTopic && isTopicStudyTimer(activeTimer)}<button class="timer-topic" on:click={() => openTopic(activeTimerTopic!)}><i></i><span><small>{activeTimer.status === 'paused' ? 'PAUSED' : 'STUDYING'}</small><strong>{activeTimer.topicId} · {activeTimerTopic.title}</strong></span></button>{:else}<div class="timer-topic anki-timer-topic"><i></i><span><small>{activeTimer.status === 'paused' ? 'ANKI PAUSED' : 'ANKI STUDY'}</small><strong>Paediatrics gap cards</strong></span></div>{/if}
+    {#if activeTimerTopic && isTopicStudyTimer(activeTimer)}<button class="timer-topic" on:click={() => openTopic(activeTimerTopic!)}><i></i><span><small>{activeTimer.status === 'paused' ? 'PAUSED' : 'STUDYING'}</small><strong>{activeTimer.rapidFireTopicIds?.length ? `Rapid Fire · ${activeTimer.rapidFireTopicIds.join(', ')}` : `${activeTimer.topicId} · ${activeTimerTopic.title}`}</strong></span></button>{:else}<div class="timer-topic anki-timer-topic"><i></i><span><small>{activeTimer.status === 'paused' ? 'ANKI PAUSED' : 'ANKI STUDY'}</small><strong>Paediatrics gap cards</strong></span></div>{/if}
     <b>{formatStudyDuration(activeTimerSeconds)}</b>
     <div>{#if activeTimer.status === 'running'}<button disabled={saving} on:click={pauseTopicStudy}>Pause</button>{:else}<button disabled={saving} on:click={resumeTopicStudy}>Resume</button>{/if}<button disabled={saving || ankiBusy} on:click={() => activeTimerIsAnki ? finishAnkiStudy() : completeTopicStudy()}>{activeTimerIsAnki ? 'Finish & validate' : 'Finish'}</button><button disabled={saving || ankiBusy} title="Discard this session without saving study time" on:click={cancelActiveStudyTimer}>Cancel</button></div>
   </aside>
