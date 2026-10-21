@@ -7,8 +7,7 @@
   import { user, userReady } from '$lib/stores/user';
   import { bookProgress, isHabitComplete, isHabitScheduledOn, localDateKey, startOfWeek, taskDueState, type LifeBook, type LifeEntry, type LifeHabit, type LifeTask } from '$lib/utils/lifeTracker';
   import { buildWearDayIndex, type WearInsightItem } from '$lib/utils/wearInsights';
-  import { PAEDIATRICS_SYLLABUS } from '$lib/paediatrics/paediatricsSyllabus';
-  import type { PaediatricsState } from '$lib/paediatrics/paediatricsSchema';
+  import { LESSONS, type CzechState } from '$lib/czech/study';
   import { formatSportsDuration, sportsWeekStart, summarizeSports, type SportsActivity } from '$lib/utils/sports';
 
   type WardrobeItem = WearInsightItem & { worn?: number | string };
@@ -19,7 +18,7 @@
   let tasks: LifeTask[] = [];
   let books: LifeBook[] = [];
   let lifeEntries: LifeEntry[] = [];
-  let studyState: PaediatricsState | null = null;
+  let studyState: CzechState | null = null;
   let dueRetention = 0;
   let questionsToday = 0;
   let savedOutfitCount = 0;
@@ -43,10 +42,10 @@
   });
   $: activeBook = books.filter((book) => book.status === 'reading').sort((a, b) => Number(b.currentPage ?? 0) - Number(a.currentPage ?? 0))[0] ?? null;
   $: finishedBooks = books.filter((book) => book.status === 'read').length;
-  $: studyTopics = studyState ? Object.values(studyState.topics) : [];
-  $: assessedTopics = studyTopics.filter((topic) => topic.status !== 'unassessed').length;
-  $: solidTopics = studyTopics.filter((topic) => topic.status === 'solid').length;
-  $: studyPercent = PAEDIATRICS_SYLLABUS.length ? Math.round((assessedTopics / PAEDIATRICS_SYLLABUS.length) * 100) : 0;
+  $: studyTopics = studyState ? Object.values(studyState.assessments).flatMap(a=>Object.values(a)) : [];
+  $: assessedTopics = studyTopics.length;
+  $: solidTopics = studyTopics.filter(rating=>rating && rating.score>=3).length;
+  $: studyPercent = Math.round(assessedTopics / (LESSONS.length*4)*100);
   $: sportsWeek = summarizeSports(sportsActivities.filter((activity) => sportsWeekStart(activity.startDateLocal) === sportsWeekStart(new Date().toISOString())));
 
   function imageFor(item: WardrobeItem | LifeBook | null) {
@@ -72,15 +71,13 @@
     const weekStart = startOfWeek(today);
     const todayStart = `${today}T00:00:00`;
     const nowIso = new Date().toISOString();
-    const [itemSnap, habitSnap, taskSnap, bookSnap, entrySnap, stateSnap, dueCardsSnap, sessionSnap, outfitCount] = await Promise.all([
+    const [itemSnap, habitSnap, taskSnap, bookSnap, entrySnap, stateSnap, outfitCount] = await Promise.all([
       optional('wardrobe', () => getDocs(collection(db, 'users', uid, 'items')), null),
       optional('life', () => getDocs(collection(db, 'users', uid, 'lifeHabits')), null),
       optional('life', () => getDocs(collection(db, 'users', uid, 'lifeTasks')), null),
       optional('life', () => getDocs(collection(db, 'users', uid, 'lifeBooks')), null),
       optional('life', () => getDocs(query(collection(db, 'users', uid, 'lifeEntries'), where('date', '>=', weekStart))), null),
-      optional('study', () => getDoc(doc(db, 'users', uid, 'paediatricsTracker', 'state')), null),
-      optional('study', () => getDocs(query(collection(db, 'users', uid, 'paediatricsRetentionCards'), where('dueAt', '<=', nowIso), limit(200))), null),
-      optional('study', () => getDocs(query(collection(db, 'users', uid, 'paediatricsSessions'), where('date', '>=', todayStart), limit(25))), null),
+      optional('study', () => getDoc(doc(db, 'users', uid, 'meta', 'czechStudy')), null),
       optional('outfits', () => getCountFromServer(collection(db, 'users', uid, 'outfits')), null)
     ]);
     items = itemSnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as WardrobeItem)) ?? [];
@@ -88,9 +85,9 @@
     tasks = taskSnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as LifeTask)).filter((entry) => !entry.archived) ?? [];
     books = bookSnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as LifeBook)).filter((entry) => !entry.archived) ?? [];
     lifeEntries = entrySnap?.docs.map((entry) => ({ id: entry.id, ...entry.data() } as LifeEntry)) ?? [];
-    studyState = stateSnap?.exists() ? stateSnap.data() as PaediatricsState : null;
-    dueRetention = dueCardsSnap?.docs.filter((entry) => entry.data().status === 'active').length ?? 0;
-    questionsToday = sessionSnap?.docs.reduce((sum, entry) => sum + (Number(entry.data().questions) || 0), 0) ?? 0;
+    studyState = stateSnap?.exists() ? stateSnap.data() as CzechState : null;
+    dueRetention = studyState?.gaps.filter(gap=>!gap.resolvedAt).length ?? 0;
+    questionsToday = studyState?.practiceCount ?? 0;
     savedOutfitCount = outfitCount?.data().count ?? 0;
     loading = false;
   }
@@ -145,7 +142,7 @@
     <section class="pulse-grid" aria-label="Trackr overview">
       <button class="pulse life" on:click={() => goto('/life')}><span class="pulse-mark">01</span><div><small>Life today</small><strong>{completedHabits}/{dueHabits.length}</strong><p>{dueTasks.length ? `${dueTasks.length} recurring task${dueTasks.length === 1 ? '' : 's'} need attention` : 'No recurring tasks overdue'}</p></div></button>
       <button class="pulse wardrobe" on:click={() => goto('/wear-calendar')}><span class="pulse-mark">02</span><div><small>Today’s wardrobe</small><strong>{todayWears.reduce((sum, entry) => sum + entry.count, 0)}</strong><p>{todayWears.length ? `${todayWears.length} different pieces recorded` : 'Nothing recorded yet'}</p></div></button>
-      <button class="pulse study" on:click={() => goto('/study/review')}><span class="pulse-mark">03</span><div><small>Study recall</small><strong>{dueRetention}</strong><p>{dueRetention ? 'retention cards ready for review' : `${questionsToday} questions logged today`}</p></div></button>
+      <button class="pulse study" on:click={() => goto('/study/czech')}><span class="pulse-mark">03</span><div><small>Study recall</small><strong>{dueRetention}</strong><p>{dueRetention ? 'Czech gaps ready to practise' : `${questionsToday} Czech practices saved`}</p></div></button>
       <button class="pulse sports" on:click={() => goto('/sports')}><span class="pulse-mark">04</span><div><small>Sports this week</small><strong>{sportsWeek.count}</strong><p>{sportsWeek.count ? `${formatSportsDuration(sportsWeek.duration)} · ${Math.round(sportsWeek.load)} load` : 'No activities recorded yet'}</p></div></button>
     </section>
 
@@ -171,9 +168,9 @@
         </article>
 
         <article class="focus-card study-focus">
-          <div class="focus-head"><span>Paediatrics</span><button on:click={() => goto('/study')}>Open →</button></div>
+          <div class="focus-head"><span>Czech · A1/A2</span><button on:click={() => goto('/study')}>Open →</button></div>
           <div class="study-ring" style={`--progress:${studyPercent * 3.6}deg`}><div><strong>{studyPercent}%</strong><span>assessed</span></div></div>
-          <div class="study-copy"><h3>{solidTopics} solid topics</h3><p>{assessedTopics} of {PAEDIATRICS_SYLLABUS.length} topics assessed · {questionsToday} questions today</p>{#if dueRetention}<button on:click={() => goto('/study/review')}>Review {dueRetention} due cards</button>{:else}<button on:click={() => goto('/study/plan')}>Open study plan</button>{/if}</div>
+          <div class="study-copy"><h3>{solidTopics} independent skills</h3><p>{assessedTopics} of {LESSONS.length*4} lesson skills assessed · {questionsToday} practices saved</p>{#if dueRetention}<button on:click={() => goto('/study/czech')}>Practise {dueRetention} Czech gaps</button>{:else}<button on:click={() => goto('/study/czech')}>Start Czech practice</button>{/if}</div>
         </article>
       </div>
     </section>
