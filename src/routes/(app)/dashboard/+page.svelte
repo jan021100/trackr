@@ -168,7 +168,7 @@
         </article>
 
         <article class="focus-card study-focus">
-          <div class="focus-head"><span>Czech · A1/A2</span><button on:click={() => goto('/study')}>Open →</button></div>
+          <div class="focus-head"><span>Czech</span><button on:click={() => goto('/study')}>Open →</button></div>
           <div class="study-ring" style={`--progress:${studyPercent * 3.6}deg`}><div><strong>{studyPercent}%</strong><span>assessed</span></div></div>
           <div class="study-copy"><h3>{solidTopics} independent skills</h3><p>{assessedTopics} of {LESSONS.length*4} lesson skills assessed · {questionsToday} practices saved</p>{#if dueRetention}<button on:click={() => goto('/study/czech')}>Practise {dueRetention} Czech gaps</button>{:else}<button on:click={() => goto('/study/czech')}>Start Czech practice</button>{/if}</div>
         </article>

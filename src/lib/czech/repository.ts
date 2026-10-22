@@ -9,7 +9,9 @@ export async function importPractice(uid:string,patch:Patch){
   const [state,existing]=await Promise.all([tx.get(ref),tx.get(log)]);
   if(existing.exists())return false;
   const now=new Date().toISOString(),next=applyPatch(state.exists()?state.data() as CzechState:emptyState(),patch,now);
-  tx.set(ref,next);tx.set(log,{kind:'czech-review',createdAt:now,patch});return true;
+  // Vocabulary is reconstructed from practice logs; keep the state document small as it grows.
+  const {vocabulary:_vocabulary,...stored}=next;
+  tx.set(ref,stored);tx.set(log,{kind:'czech-review',createdAt:now,patch});return true;
  });
 }
 export async function changeTimer(uid:string,action:'start'|'pause'|'resume'|'finish'|'cancel',lessonId:string){
@@ -35,3 +37,4 @@ export async function changeTimer(uid:string,action:'start'|'pause'|'resume'|'fi
  });
 }
 export async function exportCzech(uid:string,state:CzechState){const logs=await getDocs(query(collection(db,'users',uid,'studyLogs'),where('kind','in',['czech-review','czech-time'])));return {kind:'trackr-czech-backup',exportedAt:new Date().toISOString(),state,history:logs.docs.map(d=>({id:d.id,...d.data()}))};}
+export async function readPracticeHistory(uid:string){const logs=await getDocs(query(collection(db,'users',uid,'studyLogs'),where('kind','==','czech-review')));return logs.docs.map(d=>({id:d.id,...d.data()})) as import('./progress').PracticeLog[];}
