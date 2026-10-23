@@ -16,5 +16,5 @@ export const calendarDependencies:CalendarDependencies={
   });
  },
  async owner(hash){const s=await getAdminDb().collection('medicineCalendarFeeds').doc(hash).get();const uid=s.data()?.uid;return typeof uid==='string'?uid:null;},
- async times(uid){const s=await getAdminDb().collection('users').doc(uid).collection('studyLogs').where('kind','==','medicine-time').get();return s.docs.map(d=>({id:d.id,startedAt:d.data().startedAt,endedAt:d.data().endedAt})).filter(s=>typeof s.startedAt==='string'&&typeof s.endedAt==='string') as StudyTime[];}
+ async times(uid){const s=await getAdminDb().collection('users').doc(uid).collection('studyLogs').where('kind','in',['medicine-time','czech-time']).get();return s.docs.map(d=>({id:d.id,subject:d.data().kind==='czech-time'?'czech':'medicine',startedAt:d.data().startedAt,endedAt:d.data().endedAt})).filter(s=>typeof s.startedAt==='string'&&typeof s.endedAt==='string') as StudyTime[];}
 };

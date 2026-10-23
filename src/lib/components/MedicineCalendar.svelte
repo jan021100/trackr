@@ -20,7 +20,7 @@
 </script>
 <section class="calendar" aria-labelledby="calendar-title">
  <h2 id="calendar-title">Lernzeiten im Kalender.</h2>
- <p>Ein eigener Kalender für abgeschlossene Medizin-Sessions. Start bis Ende, inklusive Pausen. Liegen weniger als 15 Minuten dazwischen, werden Sessions zu einem Block zusammengefasst. Laufende und abgebrochene Timer erscheinen nicht.</p>
+ <p>Ein eigener Kalender für abgeschlossene Medizin- und Tschechisch-Sessions. Start bis Ende, inklusive Pausen. Liegen weniger als 15 Minuten dazwischen, werden Sessions desselben Fachs zu einem Block zusammengefasst. Laufende und abgebrochene Timer erscheinen nicht.</p>
  {#if localOnly}<p class="local-note">Du nutzt Trackr lokal. Dieses Abo funktioniert nur auf diesem Mac, solange Trackr läuft. Wähle in Kalender „Auf meinem Mac“. Für iCloud und iPhone ist eine öffentlich erreichbare Trackr-Adresse nötig.</p>{/if}
  {#if error}<p role="alert" class="error">{error}</p><button disabled={busy} on:click={()=>update('GET')}>Erneut versuchen</button>{/if}
  {#if notice}<p role="status">{notice}</p>{/if}
@@ -31,7 +31,7 @@
  <ol><li>„In Apple Kalender abonnieren“ öffnen oder den Link kopieren und auf dem Mac unter <strong>Ablage → Neues Kalenderabonnement</strong> einfügen.</li><li>{#if localOnly}Als Ort <strong>Auf meinem Mac</strong> wählen. Der lokale Link ist für iCloud nicht erreichbar.{:else}Als Ort <strong>iCloud</strong> wählen, damit das Abo auch auf dem iPhone erscheint.{/if}</li><li>Automatisch aktualisieren einstellen. Neue Lernblöcke erscheinen nach der nächsten Aktualisierung.</li></ol>
  <div class="actions"><a class="primary" href={subscribeUrl} referrerpolicy="no-referrer">{localOnly?'Auf diesem Mac abonnieren':'In Apple Kalender abonnieren'}</a><button on:click={copy}>Abo-Link kopieren</button></div>
  <details><summary>Privaten Link anzeigen / manuell kopieren</summary><input readonly value={feedUrl} aria-label="Privater Kalender-Abo-Link" autocomplete="off" spellcheck="false"/></details>
- <p class="small">Das Abo ist schreibgeschützt. Es enthält auch bereits gespeicherte Medizin-Lernzeiten und benötigt kein iCloud-Passwort in Trackr. Ein deaktivierter Link lässt sich nicht mehr abrufen; erneutes Aktivieren erzeugt einen neuen.</p>
+ <p class="small">Das Abo ist schreibgeschützt. Es enthält auch bereits gespeicherte Medizin- und Tschechisch-Lernzeiten und benötigt kein iCloud-Passwort in Trackr. Ein deaktivierter Link lässt sich nicht mehr abrufen; erneutes Aktivieren erzeugt einen neuen.</p>
  <button disabled={busy} on:click={()=>update('DELETE')}>Abo-Link deaktivieren</button>
  {/if}
 </section>

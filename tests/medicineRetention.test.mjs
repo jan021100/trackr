@@ -78,3 +78,14 @@ test('native calendar links use the actual IPv4 listener locally and preserve HT
  const remote=calendarLinks('https://example.test','/api/medicine/calendar/feed/test-token');assert.equal(remote.feed,'https://example.test/api/medicine/calendar/feed/test-token');assert.equal(remote.localOnly,false);
  assert.equal(calendarLinks('http://localhost:5174','').feed,'');
 });
+
+test('one subscribed calendar includes both subjects with separate titles and preserves existing medical event IDs',()=>{
+ const medicine={...time('medical-session','10:00','10:20'),subject:'medicine'};
+ const czech={...time('czech-session','10:25','10:40'),subject:'czech'};
+ const czech2={...time('czech-session-two','10:45','11:00'),subject:'czech'};
+ const medicine2={...time('medical-session-two','11:05','11:20'),subject:'medicine'};
+ const blocks=calendarBlocks([medicine,czech,czech2,medicine2]);assert.equal(blocks.length,3);assert.equal(blocks[1].count,2);assert.equal(blocks[1].subject,'czech');
+ const feed=calendarFeed([medicine,czech,czech2,medicine2],'same-subscription');assert.equal((feed.match(/SUMMARY:Medizin · Lernsession/g)??[]).length,2);assert.equal((feed.match(/SUMMARY:Tschechisch · Lernsession/g)??[]).length,1);
+ assert.match(feed,/UID:same-subscription-medical-session@trackr.learning/);
+ const legacy=calendarFeed([time('medical-session','10:00','10:20')],'same-subscription');assert.match(legacy,/UID:same-subscription-medical-session@trackr.learning/);assert.match(legacy,/SUMMARY:Medizin · Lernsession/);
+});
