@@ -44,10 +44,10 @@ test('balanced coverage rotates even partial unscored encounters and selects a f
 test('specific gaps retain IDs, repair never auto-resolves and later tests update only real IDs',()=>{
  const p=patch();p.addGaps=[{specialtyId:'family',prompt:'Identify a missing decision',answer:'Checked corrected key point',priority:'critical'}];
  const gaps=updateGaps([],p,now);assert.equal(gaps.length,1);assert.equal(gaps[0].resolvedAt,undefined);
- const later='2026-10-23T12:00:00.000Z';const next=patch('second');next.addGaps=[{...p.addGaps[0],priority:'normal'}];
+ const later='2026-10-26T12:00:00.000Z';const next=patch('second');next.addGaps=[{...p.addGaps[0],priority:'normal'}];
  const unchanged=updateGaps(gaps,next,later);assert.equal(unchanged.length,1);assert.equal(unchanged[0].priority,'critical');
  next.gapResults=[{gapId:gaps[0].id,outcome:'unchanged'}];assert.equal(updateGaps(gaps,next,later)[0].resolvedAt,undefined);
- next.gapResults[0].outcome='resolved';assert.equal(updateGaps(gaps,next,later)[0].resolvedAt,later);
+ next.addGaps=[];next.gapResults[0].outcome='resolved';assert.equal(updateGaps(gaps,next,later)[0].resolvedAt,later);
  next.gapResults=[{gapId:'not-found',outcome:'resolved'}];assert.throws(()=>updateGaps(gaps,next,later),/vorhandene/);
 });
 test('every specialty generates a valid patch contract and a case-based source-access prompt',()=>{

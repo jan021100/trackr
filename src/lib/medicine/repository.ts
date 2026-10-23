@@ -1,20 +1,36 @@
 import {collection,doc,getDocs,onSnapshot,query,runTransaction,where} from 'firebase/firestore';
 import {db} from '$lib/firebase';
-import {applyPatch,validatePatch,updateGaps,emptyState,elapsed,pause,resume,type State,type Gap,type Patch,type Request,type CaseLog} from './study';
+import {applyPatch,validatePatch,updateGaps,emptyState,pause,resume,normalizeGap,finishSession,finishPatchSession,type State,type Gap,type Patch,type Request,type CaseLog} from './study';
 const ref=(uid:string)=>doc(db,'users',uid,'meta','medicineStudy');
 export function subscribeMedicine(uid:string,onState:(s:State)=>void,onGaps:(g:Gap[])=>void,onError:(e:Error)=>void){const a=onSnapshot(ref(uid),s=>onState(s.exists()?s.data() as State:emptyState()),onError);const b=onSnapshot(query(collection(db,'users',uid,'studyLogs'),where('kind','==','medicine-gap')),s=>onGaps(s.docs.map(d=>d.data() as Gap)),onError);return()=>{a();b();};}
 export async function importCase(uid:string,input:Patch,knownGaps:Gap[]){
  const p=validatePatch(input);
- const duplicateIds=knownGaps.filter(old=>!old.resolvedAt&&p.addGaps.some(g=>g.specialtyId===old.specialtyId&&g.prompt.trim().toLowerCase()===old.prompt.trim().toLowerCase())).map(g=>g.id);
+ // Stable exact-question index prevents concurrent imports creating duplicate gaps.
+ // Semantic equivalence is explicit via gapId, never guessed by fuzzy medical-text matching.
+ const gapKeys=await Promise.all(p.addGaps.map(async g=>{const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(`${g.specialtyId}:${normalizeGap(g.prompt)}`));return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('');}));
  return runTransaction(db,async tx=>{
   const caseRef=doc(db,'users',uid,'studyLogs',`medicine-case-${p.id}`);
-  const ids=[...new Set([...duplicateIds,...p.gapResults.map(r=>r.gapId)])];
-  const [s,already,...gapDocs]=await Promise.all([tx.get(ref(uid)),tx.get(caseRef),...ids.map(id=>tx.get(doc(db,'users',uid,'studyLogs',`medicine-gap-${id}`)))]);
+  const indexRefs=gapKeys.map(key=>doc(db,'users',uid,'studyLogs',`medicine-gap-key-${key}`));
+  const [s,already,...indexes]=await Promise.all([tx.get(ref(uid)),tx.get(caseRef),...indexRefs.map(r=>tx.get(r))]);
   if(already.exists())return false;
+  const effective=structuredClone(p);
+  for(const [i,g] of effective.addGaps.entries()){
+   const indexed=indexes[i].data()?.gapId as string|undefined;
+   const legacy=knownGaps.find(old=>old.specialtyId===g.specialtyId&&normalizeGap(old.prompt)===normalizeGap(g.prompt));
+   g.gapId??=indexed??legacy?.id;
+  }
+  const ids=[...new Set([...effective.addGaps.flatMap(g=>g.gapId?[g.gapId]:[]),...p.gapResults.map(r=>r.gapId)])];
+  const gapDocs=await Promise.all(ids.map(id=>tx.get(doc(db,'users',uid,'studyLogs',`medicine-gap-${id}`))));
   const now=new Date().toISOString(),state=s.exists()?s.data() as State:emptyState();
-  const gaps=updateGaps(gapDocs.filter(d=>d.exists()).map(d=>d.data() as Gap),p,now);
-  tx.set(ref(uid),applyPatch(state,p,now));tx.set(caseRef,{kind:'medicine-case',createdAt:now,patch:p});
+  const gaps=updateGaps(gapDocs.filter(d=>d.exists()).map(d=>d.data() as Gap),effective,now);
+  const finished=finishPatchSession(applyPatch(state,p,now),p,now);
+  tx.set(ref(uid),finished.state);tx.set(caseRef,{kind:'medicine-case',createdAt:now,patch:p});
+  if(finished.log)tx.set(doc(db,'users',uid,'studyLogs',finished.id!),finished.log);
   for(const g of gaps)tx.set(doc(db,'users',uid,'studyLogs',`medicine-gap-${g.id}`),{kind:'medicine-gap',...g});
+  for(const [i,g] of effective.addGaps.entries()){
+   const target=g.gapId??gaps.find(old=>old.specialtyId===g.specialtyId&&normalizeGap(old.prompt)===normalizeGap(g.prompt))?.id;
+   if(target)tx.set(indexRefs[i],{kind:'medicine-gap-key',gapId:target});
+  }
   return true;
  });
 }
@@ -27,7 +43,7 @@ export async function changeTimer(uid:string,action:'start'|'pause'|'resume'|'fi
  }else{
   if(!state.timer)return;
   if(action==='pause')state.timer=pause(state.timer,now);else if(action==='resume')state.timer=resume(state.timer,now);else{
-   if(action==='finish'){const seconds=elapsed(state.timer,now);state.studySeconds+=seconds;tx.set(doc(db,'users',uid,'studyLogs',`medicine-time-${state.timer.request.id}-${state.timer.startedAt}`),{kind:'medicine-time',createdAt:stamp,request:state.timer.request,startedAt:state.timer.startedAt,endedAt:stamp,durationSeconds:seconds});}
+   if(action==='finish'){const finished=finishSession(state,stamp);state.studySeconds=finished.state.studySeconds;tx.set(doc(db,'users',uid,'studyLogs',finished.id!),finished.log!);}
    delete state.timer;
   }
  }
