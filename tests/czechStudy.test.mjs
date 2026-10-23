@@ -40,3 +40,24 @@ test('archives are read-only and old active routes redirect before subscriptions
  for(const route of ['','/plan','/review'])assert.match(fs.readFileSync('src/routes/(app)/study'+route+'/+page.ts','utf8'),/redirect\(307/);
  assert.doesNotMatch(fs.readFileSync('src/routes/(app)/dashboard/+page.svelte','utf8'),/paediatricsTracker|paediatricsSessions|paediatricsRetentionCards/);
 });
+
+test('Czech patch session completion saves active time and calendar bounds once, while unrelated IDs cannot stop a new session',async()=>{
+ const {startPracticeTimer,finishPracticePatch,patchMatchesTimer}=await import('../src/lib/czech/study.ts');
+ const state=emptyState();state.timer=startPracticeTimer(undefined,'hello','session-1',now);
+ state.timer=pause(state.timer,Date.parse(now)+60000);assert.equal(state.timer.patchId,'session-1');
+ state.timer=resume(state.timer,Date.parse(now)+180000);assert.equal(state.timer.patchId,'session-1');
+ const end=new Date(Date.parse(now)+240000).toISOString();
+ const other={...patch(),id:'other-session'};assert.equal(patchMatchesTimer(state.timer,other),false);assert.ok(finishPracticePatch(state,other,end).state.timer);
+ const completed=finishPracticePatch(applyPatch(state,patch(),end),patch(),end);
+ assert.equal(completed.state.timer,undefined);assert.equal(completed.state.studySeconds,120);assert.equal(completed.state.practiceCount,1);assert.equal(completed.log.kind,'czech-time');assert.equal(completed.log.startedAt,now);assert.equal(completed.log.endedAt,end);
+ assert.equal(finishPracticePatch(completed.state,patch(),end).log,undefined);assert.equal(finishPracticePatch(completed.state,patch(),end).state.studySeconds,120);
+ assert.ok(state.timer);assert.throws(()=>startPracticeTimer(state.timer,'hello','wrong-session',end),/Finish or cancel/);
+});
+test('legacy Czech timers finish only for matching lesson evidence and receive a stable ID when copying a new prompt',async()=>{
+ const {startPracticeTimer,patchMatchesTimer,finishPracticePatch}=await import('../src/lib/czech/study.ts');
+ const state=emptyState();state.timer={lessonId:'hello',startedAt:now,runningSince:now,seconds:0,status:'running'};
+ assert.equal(patchMatchesTimer(state.timer,patch()),true);
+ const other=patch();other.assessments=[];other.addGaps=[];other.vocabulary=[{lessonId:'symptoms',term:'bolest',meaning:'Schmerz',kind:'word',status:'recalled',evidence:'Independent'}];
+ assert.equal(patchMatchesTimer(state.timer,other),false);assert.ok(finishPracticePatch(state,other,now).state.timer);
+ const linked=startPracticeTimer(state.timer,'hello','linked-session',now);assert.equal(linked.patchId,'linked-session');assert.equal(linked.startedAt,now);
+});

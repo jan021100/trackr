@@ -21,7 +21,7 @@ export const LESSONS=[
 ].map(([id,track,title,goal])=>({id,track,title,goal}));
 export type Rating={score:number;evidence:string;at:string};
 export type Gap={id:string;lessonId:string;skill:Skill;prompt:string;answer:string;priority:'important'|'normal';createdAt:string;resolvedAt?:string};
-export type Timer={lessonId:string;startedAt:string;runningSince?:string;seconds:number;status:'running'|'paused'};
+export type Timer={patchId?:string;lessonId:string;startedAt:string;runningSince?:string;seconds:number;status:'running'|'paused'};
 export type CzechState={version:1;level?:string;vocabulary?:VocabularyItem[];assessments:Record<string,Partial<Record<Skill,Rating>>>;gaps:Gap[];studySeconds:number;practiceCount:number;timer?:Timer};
 export type Patch={kind:'trackr-czech-patch';schemaVersion:1;id:string;assessments:Array<{lessonId:string;skill:Skill;score:number;evidence:string}>;addGaps:Array<Omit<Gap,'id'|'createdAt'|'resolvedAt'>>;resolveGapIds:string[];vocabulary?:VocabularyInput[]};
 export const emptyState=():CzechState=>({version:1,vocabulary:[],assessments:{},gaps:[],studySeconds:0,practiceCount:0});
@@ -55,7 +55,7 @@ export function applyPatch(state:CzechState,p:Patch,now:string):CzechState {
  next.practiceCount+=1;return next;
 }
 export function elapsed(timer:Timer,now=Date.now()){return timer.seconds+(timer.status==='running'?Math.max(0,Math.floor((now-Date.parse(timer.runningSince!))/1000)):0);}
-export function pause(timer:Timer,now:number):Timer {return timer.status==='paused'?timer:{lessonId:timer.lessonId,startedAt:timer.startedAt,seconds:elapsed(timer,now),status:'paused'};}
+export function pause(timer:Timer,now:number):Timer {if(timer.status==='paused')return timer;const next:Timer={...timer,seconds:elapsed(timer,now),status:'paused'};delete next.runningSince;return next;}
 export function resume(timer:Timer,now:number):Timer {return timer.status==='running'?timer:{...timer,status:'running',runningSince:new Date(now).toISOString()};}
 export function rankedLessons(state:CzechState,track:string,focus:Focus,now=Date.now()) {
  return LESSONS.filter(l=>track==='All'||l.track===track).map(l=>{const ratings=Object.values(state.assessments[l.id]??{});const a=focus==='mixed'?(ratings.length?{score:ratings.reduce((n,a)=>n+a!.score,0)/ratings.length,at:ratings.map(a=>a!.at).sort()[0]}:undefined):state.assessments[l.id]?.[focus];return {...l,priority:a?(4-a.score)*4+Math.max(0,(now-Date.parse(a.at))/86400000):10000};}).sort((a,b)=>b.priority-a.priority);
@@ -82,3 +82,21 @@ export function mergeVocabulary(existing:VocabularyItem[],incoming:VocabularyInp
 }
 export function topicScore(state:CzechState,id:string):number|undefined{const ratings=Object.values(state.assessments[id]??{});return ratings.length?ratings.reduce((n,a)=>n+a!.score,0)/ratings.length:undefined;}
 export function scoreBand(score:number|undefined){return score===undefined?'unassessed':score<1?'starting':score<2?'building':score<3?'developing':score<4?'independent':'confident';}
+
+export function startPracticeTimer(timer:Timer|undefined,lessonId:string,patchId:string,now:string):Timer{
+ if(timer&&(timer.lessonId!==lessonId||(timer.patchId&&timer.patchId!==patchId)))throw new Error('Finish or cancel the current practice timer first.');
+ return timer?{...resume(timer,Date.parse(now)),patchId}:{lessonId,patchId,startedAt:now,runningSince:now,seconds:0,status:'running'};
+}
+export function patchMatchesTimer(timer:Timer|undefined,patch:Patch){
+ if(!timer)return false;
+ if(timer.patchId)return timer.patchId===patch.id;
+ // Older timers predate session IDs. Only finish them when the imported practice
+ // actually includes their lesson. All newly started timers use exact patch IDs.
+ return [...patch.assessments,...patch.addGaps,...(patch.vocabulary??[])].some(item=>item.lessonId===timer.lessonId);
+}
+export function finishPracticeTimer(state:CzechState,now:string){
+ const next=structuredClone(state),timer=next.timer;if(!timer)return {state:next};
+ const seconds=elapsed(timer,Date.parse(now));next.studySeconds+=seconds;delete next.timer;
+ return {state:next,id:`czech-time-${timer.startedAt}`,log:{kind:'czech-time',createdAt:now,lessonId:timer.lessonId,startedAt:timer.startedAt,endedAt:now,durationSeconds:seconds}};
+}
+export function finishPracticePatch(state:CzechState,patch:Patch,now:string){return patchMatchesTimer(state.timer,patch)?finishPracticeTimer(state,now):{state};}
