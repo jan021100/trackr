@@ -4,6 +4,7 @@ import type { Credential } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { readFileSync } from 'fs';
+import { env } from '$env/dynamic/private';
 import { firebaseConfig } from '$lib/firebase-config';
 import {
   FIREBASE_PROJECT_ID,
@@ -12,9 +13,10 @@ import {
 } from '$env/static/private';
 
 function getCredential(): Credential {
-  if (process.env.FIREBASE_KEY_PATH && process.env.NODE_ENV !== 'production') {
+  const keyPath = process.env.FIREBASE_KEY_PATH || env.FIREBASE_KEY_PATH;
+  if (keyPath && process.env.NODE_ENV !== 'production') {
     // Lokale Entwicklungsumgebung: JSON-Datei lesen
-    const serviceAccount = JSON.parse(readFileSync(process.env.FIREBASE_KEY_PATH, 'utf-8'));
+    const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf-8'));
     return cert(serviceAccount);
   }
 
