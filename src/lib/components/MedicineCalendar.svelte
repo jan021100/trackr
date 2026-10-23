@@ -1,11 +1,13 @@
 <script lang="ts">
  import {onMount} from 'svelte';
  import {auth} from '$lib/firebase';
+ import {calendarLinks} from '$lib/medicine/calendar';
  export let uid:string;
  let ready=false,busy=false,error='',path='',notice='',owner=uid;
- $: feedUrl=path&&typeof window!=='undefined'?new URL(path,window.location.origin).href:'';
- $: subscribeUrl=feedUrl.replace(/^https?:/,'webcal:');
- $: localOnly=typeof window!=='undefined'&&['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);
+ $: links=typeof window!=='undefined'?calendarLinks(window.location.origin,path):{feed:'',subscribe:'',localOnly:false};
+ $: feedUrl=links.feed;
+ $: subscribeUrl=links.subscribe;
+ $: localOnly=links.localOnly;
  onMount(()=>{void update('GET');});
  async function update(method:'GET'|'POST'|'DELETE'){
   if(busy)return;busy=true;error='';notice='';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyState,caseRequest,makePrompt,updateGaps,gapDueAt,gapDue,dueGaps,rankSpecialties,normalizeGap,finishPatchSession,pause} from '../src/lib/medicine/study.ts';
-import {calendarBlocks,calendarFeed,foldCalendarLine} from '../src/lib/medicine/calendar.ts';
+import {calendarBlocks,calendarFeed,foldCalendarLine,calendarLinks} from '../src/lib/medicine/calendar.ts';
 import {manageCalendar,serveCalendar,tokenHash} from '../src/lib/server/medicine-calendar.ts';
 const start='2026-10-23T10:00:00.000Z',later='2026-10-26T10:00:00.000Z';
 const gap={id:'gap-one',specialtyId:'family',prompt:'Welche Entscheidung fehlt?',answer:'Quellengeprüfte Antwort',priority:'important',createdAt:start};
@@ -69,4 +69,12 @@ test('patch completion stops only its own session, stores wall-clock bounds and 
  const wrong=finishPatchSession(state,{id:'old-case'},end);assert.equal(wrong.state.timer.request.id,'active-case');assert.equal(wrong.log,undefined);
  const own=finishPatchSession(state,{id:'active-case'},end);assert.equal(own.state.timer,undefined);assert.equal(own.log.durationSeconds,60);assert.equal(own.state.studySeconds,60);assert.equal(own.log.startedAt,start);assert.equal(own.log.endedAt,end);
  const repeated=finishPatchSession(own.state,{id:'active-case'},end);assert.equal(repeated.log,undefined);assert.equal(repeated.state.studySeconds,60);assert.ok(state.timer);
+});
+
+test('native calendar links use the actual IPv4 listener locally and preserve HTTPS hosts and secret paths remotely',()=>{
+ for(const origin of ['http://localhost:5174','http://127.0.0.1:5174','http://[::1]:5174']){
+  const links=calendarLinks(origin,'/api/medicine/calendar/feed/test-token');assert.equal(links.feed,'http://127.0.0.1:5174/api/medicine/calendar/feed/test-token');assert.equal(links.subscribe,'webcal://127.0.0.1:5174/api/medicine/calendar/feed/test-token');assert.equal(links.localOnly,true);
+ }
+ const remote=calendarLinks('https://example.test','/api/medicine/calendar/feed/test-token');assert.equal(remote.feed,'https://example.test/api/medicine/calendar/feed/test-token');assert.equal(remote.localOnly,false);
+ assert.equal(calendarLinks('http://localhost:5174','').feed,'');
 });

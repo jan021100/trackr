@@ -15,3 +15,12 @@ export function calendarFeed(sessions:StudyTime[],namespace:string){
  for(const b of calendarBlocks(sessions)){lines.push('BEGIN:VEVENT',`UID:${escapeText(namespace)}-${escapeText(b.id)}@trackr.learning`,`DTSTAMP:${stamp(b.end)}`,`LAST-MODIFIED:${stamp(b.end)}`,`DTSTART:${stamp(b.start)}`,`DTEND:${stamp(b.end)}`,'SUMMARY:Medizin · Lernsession',`DESCRIPTION:${b.count} Lernsession${b.count===1?'':'s'}. Zeitraum inklusive Pausen. Abstand unter 15 Minuten zusammengefasst.`,'CLASS:PRIVATE','TRANSP:TRANSPARENT','END:VEVENT');}
  lines.push('END:VCALENDAR');return lines.map(foldCalendarLine).join('\r\n')+'\r\n';
 }
+
+// The local dev server binds IPv4 loopback. Native Calendar may resolve localhost
+// to IPv6 without falling back, even when the browser succeeds.
+export function calendarLinks(origin:string,path:string){
+ const base=new URL(origin),localOnly=['localhost','127.0.0.1','[::1]'].includes(base.hostname);
+ if(localOnly)base.hostname='127.0.0.1';
+ const feed=path?new URL(path,base).href:'';
+ return {feed,subscribe:feed.replace(/^https?:/,'webcal:'),localOnly};
+}
